@@ -546,11 +546,18 @@ write_buildinfo() {
 	write_kv_pair "buildenv" "${BUILDENV[@]}"
 	write_kv_pair "options" "${OPTIONS[@]}"
 
-	local pkginfos_parsed=($(LC_ALL=C run_pacman -Qi | awk -F': ' '\
-		/^Name .*/ {printf "%s", $2} \
-		/^Version .*/ {printf "-%s", $2} \
-		/^Architecture .*/ {print "-"$2} \
-		'))
+	local pkginfos=$(LC_ALL=C run_pacman -Qi)
+
+	local pkginfos_parsed=($(echo ${pkginfos} | awk -F': ' '\
+		/^Name .*/ {printf "%s", $2}'))
+
+	local pkginfos_pkgver=$(echo ${pkginfos} | grep \
+		-e "^Version\b")
+	pkginfos_pkgver=${pkginfos_pkgver#*: }
+	pkginfos_parsed+=(${pkginfos_pkgver})
+
+	pkginfos_parsed+=($(echo ${pkginfos} | awk -F': ' '\
+		/^Architecture .*/ {print "-"$2}'))
 
 	write_kv_pair "installed" "${pkginfos_parsed[@]}"
 }

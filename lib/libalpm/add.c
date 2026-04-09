@@ -1,6 +1,7 @@
 /*
  *  add.c
  *
+ *  Copyright (c) 2026 Pellegrino Prevete <pellegrinoprevete@gmail.com>
  *  Copyright (c) 2006-2025 Pacman Development Team <pacman-dev@lists.archlinux.org>
  *  Copyright (c) 2002-2006 by Judd Vinet <jvinet@zeroflux.org>
  *
@@ -47,7 +48,110 @@
 #include "remove.h"
 #include "handle.h"
 
-int SYMEXPORT alpm_add_pkg(alpm_handle_t *handle, alpm_pkg_t *pkg)
+#ifdef __ANDROID__
+
+#endif
+// @@ -132,6 +132,9 @@
+//  		return 1;
+//  	}
+//  
+// +	archive_entry_set_uid(entry, getuid());
+// +	archive_entry_set_gid(entry, getgid());
+// +
+//  	archive_write_disk_set_options(archive_writer, archive_flags);
+//  
+//  	ret = archive_read_extract2(archive, entry, archive_writer);
+// @@ -257,19 +257,6 @@
+//  		gid_t entrygid = archive_entry_gid(entry);
+//  #endif
+// 
+// -		/* case 6: existing dir, ignore it */
+// -		if(lsbuf.st_mode != entrymode) {
+// -			/* if filesystem perms are different than pkg perms, warn user */
+// -			mode_t mask = 07777;
+// -			_alpm_log(handle, ALPM_LOG_WARNING, _("directory permissions differ on %s\n"
+// -					"filesystem: %o  package: %o\n"), filename, lsbuf.st_mode & mask,
+// -					entrymode & mask);
+// -			alpm_logaction(handle, ALPM_CALLER_PREFIX,
+// -					"warning: directory permissions differ on %s, "
+// -					"filesystem: %o  package: %o\n", filename, lsbuf.st_mode & mask,
+// -					entrymode & mask);
+// -		}
+// -
+//  #if 0
+
+static int perform_extraction(
+					alpm_handle_t *handle,
+					struct archive *archive,
+					struct archive_entry *entry,
+					const char *filename)
+{
+	int ret;
+	struct archive *archive_writer;
+	const int archive_flags = ARCHIVE_EXTRACT_OWNER |
+	                          ARCHIVE_EXTRACT_PERM |
+	                          ARCHIVE_EXTRACT_TIME |
+	                          ARCHIVE_EXTRACT_UNLINK |
+	                          ARCHIVE_EXTRACT_XATTR |
+	                          ARCHIVE_EXTRACT_SECURE_SYMLINKS;
+
+	archive_entry_set_pathname(entry, filename);
+
+	archive_writer = archive_write_disk_new();
+	if (archive_writer == NULL) {
+		_alpm_log(
+			handle,
+			ALPM_LOG_ERROR,
+			_("cannot allocate disk archive object"));
+		alpm_logaction(
+			handle,
+			ALPM_CALLER_PREFIX,
+			"error: cannot allocate disk archive object");
+		return 1;
+	}
+
+	archive_write_disk_set_options(
+		archive_writer,
+		archive_flags);
+
+	ret = archive_read_extract2(
+				archive,
+				entry,
+				archive_writer);
+
+	archive_write_free(archive_writer);
+
+	if(ret == ARCHIVE_WARN && archive_errno(archive) != ENOSPC) {
+		/* operation succeeded but a "non-critical" error was encountered */
+		_alpm_log(
+			handle,
+			ALPM_LOG_WARNING,
+			_("warning given when extracting %s (%s)\n"),
+			filename,
+			archive_error_string(archive));
+	} else if(ret != ARCHIVE_OK) {
+		_alpm_log(
+			handle,
+			ALPM_LOG_ERROR,
+			_("could not extract %s (%s)\n"),
+			filename,
+			archive_error_string(archive));
+		alpm_logaction(
+			handle,
+			ALPM_CALLER_PREFIX,
+			"error: could not extract %s (%s)\n",
+			filename,
+			archive_error_string(archive));
+		return 1;
+	}
+	return 0;
+}
+
+
+
+int SYMEXPORT alpm_add_pkg(
+					 alpm_handle_t *handle,
+					 alpm_pkg_t *pkg)
 {
 	const char *pkgname, *pkgver;
 	alpm_trans_t *trans;
@@ -55,28 +159,64 @@ int SYMEXPORT alpm_add_pkg(alpm_handle_t *handle, alpm_pkg_t *pkg)
 	alpm_pkg_t *dup;
 
 	/* Sanity checks */
-	CHECK_HANDLE(handle, return -1);
-	ASSERT(pkg != NULL, RET_ERR(handle, ALPM_ERR_WRONG_ARGS, -1));
-	ASSERT(pkg->origin != ALPM_PKG_FROM_LOCALDB,
-			RET_ERR(handle, ALPM_ERR_WRONG_ARGS, -1));
-	ASSERT(handle == pkg->handle, RET_ERR(handle, ALPM_ERR_WRONG_ARGS, -1));
+	CHECK_HANDLE(
+		handle,
+		return -1);
+	ASSERT(
+		pkg != NULL,
+		RET_ERR(
+			handle,
+			ALPM_ERR_WRONG_ARGS,
+			-1));
+	ASSERT(
+		pkg->origin != ALPM_PKG_FROM_LOCALDB,
+		RET_ERR(
+			handle,
+			ALPM_ERR_WRONG_ARGS,
+			-1));
+	ASSERT(
+		handle == pkg->handle,
+		RET_ERR(
+			handle,
+			ALPM_ERR_WRONG_ARGS,
+			-1));
 	trans = handle->trans;
-	ASSERT(trans != NULL, RET_ERR(handle, ALPM_ERR_TRANS_NULL, -1));
-	ASSERT(trans->state == STATE_INITIALIZED,
-			RET_ERR(handle, ALPM_ERR_TRANS_NOT_INITIALIZED, -1));
+	ASSERT(
+		trans != NULL,
+		RET_ERR(
+			handle,
+			ALPM_ERR_TRANS_NULL,
+			-1));
+	ASSERT(
+		trans->state == STATE_INITIALIZED,
+		RET_ERR(
+			handle,
+			ALPM_ERR_TRANS_NOT_INITIALIZED,
+			-1));
 
 	pkgname = pkg->name;
 	pkgver = pkg->version;
 
-	_alpm_log(handle, ALPM_LOG_DEBUG, "adding package '%s'\n", pkgname);
+	_alpm_log(
+		handle,
+		ALPM_LOG_DEBUG,
+		"adding package '%s'\n",
+		pkgname);
 
 	if((dup = alpm_pkg_find(trans->add, pkgname))) {
 		if(dup == pkg) {
-			_alpm_log(handle, ALPM_LOG_DEBUG, "skipping duplicate target: %s\n", pkgname);
+			_alpm_log(
+				handle,
+				ALPM_LOG_DEBUG,
+				"skipping duplicate target: %s\n",
+				pkgname);
 			return 0;
 		}
 		/* error for separate packages with the same name */
-		RET_ERR(handle, ALPM_ERR_TRANS_DUP_TARGET, -1);
+		RET_ERR(
+			handle,
+			ALPM_ERR_TRANS_DUP_TARGET,
+			-1);
 	}
 
 	if((local = _alpm_db_get_pkgfromcache(handle->db_local, pkgname))) {
@@ -87,24 +227,41 @@ int SYMEXPORT alpm_add_pkg(alpm_handle_t *handle, alpm_pkg_t *pkg)
 		if(cmp == 0) {
 			if(trans->flags & ALPM_TRANS_FLAG_NEEDED) {
 				/* with the NEEDED flag, packages up to date are not reinstalled */
-				_alpm_log(handle, ALPM_LOG_WARNING, _("%s-%s is up to date -- skipping\n"),
-						localpkgname, localpkgver);
+				_alpm_log(
+					handle,
+					ALPM_LOG_WARNING,
+					_("%s-%s is up to date -- skipping\n"),
+					localpkgname,
+					localpkgver);
 				return 0;
 			} else if(!(trans->flags & ALPM_TRANS_FLAG_DOWNLOADONLY)) {
-				_alpm_log(handle, ALPM_LOG_WARNING, _("%s-%s is up to date -- reinstalling\n"),
-						localpkgname, localpkgver);
+				_alpm_log(
+					handle,
+					ALPM_LOG_WARNING,
+					_("%s-%s is up to date -- reinstalling\n"),
+					localpkgname,
+					localpkgver);
 			}
 		} else if(cmp < 0 && !(trans->flags & ALPM_TRANS_FLAG_DOWNLOADONLY)) {
 			/* local version is newer */
-			_alpm_log(handle, ALPM_LOG_WARNING, _("downgrading package %s (%s => %s)\n"),
-					localpkgname, localpkgver, pkgver);
+			_alpm_log(
+				handle,
+				ALPM_LOG_WARNING,
+				_("downgrading package %s (%s => %s)\n"),
+				localpkgname,
+				localpkgver,
+				pkgver);
 		}
 	}
 
 	/* add the package to the transaction */
 	pkg->reason = ALPM_PKG_REASON_EXPLICIT;
-	_alpm_log(handle, ALPM_LOG_DEBUG, "adding package %s-%s to the transaction add list\n",
-						pkgname, pkgver);
+	_alpm_log(
+		handle,
+		ALPM_LOG_DEBUG,
+		"adding package %s-%s to the transaction add list\n",
+		pkgname,
+		pkgver);
 	trans->add = alpm_list_add(trans->add, pkg);
 
 	return 0;

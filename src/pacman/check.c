@@ -1,6 +1,7 @@
 /*
  *  check.c
  *
+ *  Copyright (c) 2026 Pellegrino Prevete <pellegrinoprevete@gmail.com>
  *  Copyright (c) 2012-2025 Pacman Development Team <pacman-dev@lists.archlinux.org>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -26,20 +27,29 @@
 #include "conf.h"
 #include "util.h"
 
-static int check_file_exists(const char *pkgname, char *filepath, size_t rootlen,
+static int check_file_exists(
+		const char *pkgname,
+		char *filepath,
+		size_t rootlen,
 		struct stat *st)
 {
 	/* use lstat to prevent errors from symlinks */
 	if(llstat(filepath, st) != 0) {
-		if(alpm_option_match_noextract(config->handle, filepath + rootlen) == 0) {
+		if(alpm_option_match_noextract(
+			config->handle,
+			filepath + rootlen) == 0) {
 			/* NoExtract */
 			return -1;
 		} else {
 			if(config->quiet) {
 				printf("%s %s\n", pkgname, filepath);
 			} else {
-				pm_printf(ALPM_LOG_WARNING, "%s: %s (%s)\n",
-						pkgname, filepath, strerror(errno));
+				pm_printf(
+					ALPM_LOG_WARNING,
+					"%s: %s (%s)\n",
+					pkgname,
+					filepath,
+					strerror(errno));
 			}
 			return 1;
 		}
@@ -48,8 +58,11 @@ static int check_file_exists(const char *pkgname, char *filepath, size_t rootlen
 	return 0;
 }
 
-static int check_file_type(const char *pkgname, const char *filepath,
-		struct stat *st, struct archive_entry *entry)
+static int check_file_type(
+		const char *pkgname,
+		const char *filepath,
+		struct stat *st,
+		struct archive_entry *entry)
 {
 	mode_t archive_type = archive_entry_filetype(entry);
 	mode_t file_type = st->st_mode;
@@ -60,8 +73,11 @@ static int check_file_type(const char *pkgname, const char *filepath,
 		if(config->quiet) {
 			printf("%s %s\n", pkgname, filepath);
 		} else {
-			pm_printf(ALPM_LOG_WARNING, _("%s: %s (File type mismatch)\n"),
-					pkgname, filepath);
+			pm_printf(
+				ALPM_LOG_WARNING,
+				_("%s: %s (File type mismatch)\n"),
+				pkgname,
+				filepath);
 		}
 		return 1;
 	}
@@ -69,8 +85,74 @@ static int check_file_type(const char *pkgname, const char *filepath,
 	return 0;
 }
 
-static int check_file_permissions(const char *pkgname, const char *filepath,
-		struct stat *st, struct archive_entry *entry)
+/* android */
+#ifdef __ANDROID__
+
+static int check_file_permissions(
+		const char *pkgname,
+		const char *filepath,
+		struct stat *st)
+{
+	int errors = 0;
+
+	/* uid */
+	if(st->st_uid != getuid()) {
+		errors++;
+		if(!config->quiet) {
+			pm_printf(
+				ALPM_LOG_WARNING,
+				_("%s: %s (UID mismatch)\n"),
+				pkgname,
+				filepath);
+		}
+	}
+
+	/* gid */
+	if(st->st_gid != archive_entry_gid(entry)) {
+		errors++;
+		if(!config->quiet) {
+			pm_printf(
+				ALPM_LOG_WARNING,
+				_("%s: %s (GID mismatch)\n"),
+				pkgname,
+				filepath);
+		}
+	}
+
+	return (errors != 0 ? 1 : 0);
+} 
+
+static int check_file_link(
+		const char *pkgname,
+		const char *filepath,
+		struct archive_entry *entry)
+{
+
+	char link[PATH_MAX];
+	size_t length = readlink(filepath, link, sizeof(link)-1);
+	link[length] = '\0';
+
+	if(strcmp(link, archive_entry_symlink(entry)) != 0) {
+		if(!config->quiet) {
+			pm_printf(
+				ALPM_LOG_WARNING,
+				_("%s: %s (Symlink path mismatch)\n"),
+				pkgname,
+				filepath);
+		}
+		return 1;
+	}
+
+	return 0;
+}
+
+#else
+
+static int check_file_permissions(
+		const char *pkgname,
+		const char *filepath,
+		struct stat *st,
+		struct archive_entry *entry)
 {
 	int errors = 0;
 	mode_t fsmode;
@@ -79,8 +161,11 @@ static int check_file_permissions(const char *pkgname, const char *filepath,
 	if(st->st_uid != archive_entry_uid(entry)) {
 		errors++;
 		if(!config->quiet) {
-			pm_printf(ALPM_LOG_WARNING, _("%s: %s (UID mismatch)\n"),
-					pkgname, filepath);
+			pm_printf(
+				ALPM_LOG_WARNING,
+				_("%s: %s (UID mismatch)\n"),
+				pkgname,
+				filepath);
 		}
 	}
 
@@ -88,64 +173,61 @@ static int check_file_permissions(const char *pkgname, const char *filepath,
 	if(st->st_gid != archive_entry_gid(entry)) {
 		errors++;
 		if(!config->quiet) {
-			pm_printf(ALPM_LOG_WARNING, _("%s: %s (GID mismatch)\n"),
-					pkgname, filepath);
+			pm_printf(
+				ALPM_LOG_WARNING,
+				_("%s: %s (GID mismatch)\n"),
+				pkgname,
+				filepath);
 		}
 	}
 
 	/* mode */
-	fsmode = st->st_mode & (S_ISUID | S_ISGID | S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
+	fsmode = st->st_mode & (S_ISUID | \
+				S_ISGID | \
+				S_ISVTX | \
+				S_IRWXU | \
+				S_IRWXG | \
+				S_IRWXO);
 	if(fsmode != (~AE_IFMT & archive_entry_mode(entry))) {
 		errors++;
 		if(!config->quiet) {
-			pm_printf(ALPM_LOG_WARNING, _("%s: %s (Permissions mismatch)\n"),
-					pkgname, filepath);
+			pm_printf(
+				ALPM_LOG_WARNING,
+				_("%s: %s (Permissions mismatch)\n"),
+				pkgname,
+				filepath);
 		}
 	}
 
 	return (errors != 0 ? 1 : 0);
 }
 
-static int check_file_time(const char *pkgname, const char *filepath,
-		struct stat *st, struct archive_entry *entry, int backup)
-{
-	if(st->st_mtime != archive_entry_mtime(entry)) {
-		if(backup) {
-			if(!config->quiet) {
-				printf("%s%s%s: ", config->colstr.title, _("backup file"),
-						config->colstr.nocolor);
-				printf(_("%s: %s (Modification time mismatch)\n"),
-						pkgname, filepath);
-			}
-			return 0;
-		}
-		if(!config->quiet) {
-			pm_printf(ALPM_LOG_WARNING, _("%s: %s (Modification time mismatch)\n"),
-					pkgname, filepath);
-		}
-		return 1;
-	}
-
-	return 0;
-}
-
-static int check_file_link(const char *pkgname, const char *filepath,
-		struct stat *st, struct archive_entry *entry)
+static int check_file_link(
+		const char *pkgname,
+		const char *filepath,
+		struct stat *st,
+		struct archive_entry *entry)
 {
 	size_t length = st->st_size + 1;
 	char link[length];
 
 	if(readlink(filepath, link, length) != st->st_size) {
 		/* this should not happen */
-		pm_printf(ALPM_LOG_ERROR, _("unable to read symlink contents: %s\n"), filepath);
+		pm_printf(
+			ALPM_LOG_ERROR,
+			_("unable to read symlink contents: %s\n"),
+			filepath);
 		return 1;
 	}
 	link[length - 1] = '\0';
 
 	if(strcmp(link, archive_entry_symlink(entry)) != 0) {
 		if(!config->quiet) {
-			pm_printf(ALPM_LOG_WARNING, _("%s: %s (Symlink path mismatch)\n"),
-					pkgname, filepath);
+			pm_printf(
+				ALPM_LOG_WARNING,
+				_("%s: %s (Symlink path mismatch)\n"),
+				pkgname,
+				filepath);
 		}
 		return 1;
 	}
@@ -153,22 +235,71 @@ static int check_file_link(const char *pkgname, const char *filepath,
 	return 0;
 }
 
-static int check_file_size(const char *pkgname, const char *filepath,
-		struct stat *st, struct archive_entry *entry, int backup)
+#endif
+
+static int check_file_time(
+		const char *pkgname,
+		const char *filepath,
+		struct stat *st,
+		struct archive_entry *entry,
+		int backup)
 {
-	if(st->st_size != archive_entry_size(entry)) {
+	if(st->st_mtime != archive_entry_mtime(entry)) {
 		if(backup) {
 			if(!config->quiet) {
-				printf("%s%s%s: ", config->colstr.title, _("backup file"),
-						config->colstr.nocolor);
-				printf(_("%s: %s (Size mismatch)\n"),
-						pkgname, filepath);
+				printf(
+					"%s%s%s: ",
+					config->colstr.title,
+					_("backup file"),
+					config->colstr.nocolor);
+				printf(
+					_("%s: %s (Modification time mismatch)\n"),
+					pkgname,
+					filepath);
 			}
 			return 0;
 		}
 		if(!config->quiet) {
-			pm_printf(ALPM_LOG_WARNING, _("%s: %s (Size mismatch)\n"),
-					pkgname, filepath);
+			pm_printf(
+				ALPM_LOG_WARNING,
+				_("%s: %s (Modification time mismatch)\n"),
+				pkgname,
+				filepath);
+		}
+		return 1;
+	}
+
+	return 0;
+}
+
+static int check_file_size(
+		const char *pkgname,
+		const char *filepath,
+		struct stat *st,
+		struct archive_entry *entry,
+		int backup)
+{
+	if(st->st_size != archive_entry_size(entry)) {
+		if(backup) {
+			if(!config->quiet) {
+				printf(
+					"%s%s%s: ",
+					config->colstr.title,
+					_("backup file"),
+					config->colstr.nocolor);
+				printf(
+					_("%s: %s (Size mismatch)\n"),
+					pkgname,
+					filepath);
+			}
+			return 0;
+		}
+		if(!config->quiet) {
+			pm_printf(
+				ALPM_LOG_WARNING,
+				_("%s: %s (Size mismatch)\n"),
+				pkgname,
+				filepath);
 		}
 		return 1;
 	}
@@ -177,21 +308,34 @@ static int check_file_size(const char *pkgname, const char *filepath,
 }
 
 #if ARCHIVE_VERSION_NUMBER >= 3005000
-static int check_file_cksum(const char *pkgname, const char *filepath,
-		int backup, const char *cksum_name, const char *cksum_calc, const char *cksum_mtree)
+static int check_file_cksum(
+		const char *pkgname,
+		const char *filepath,
+		int backup,
+		const char *cksum_name,
+		const char *cksum_calc,
+		const char *cksum_mtree)
 {
 	if(!cksum_calc) {
 		if(!config->quiet) {
-			pm_printf(ALPM_LOG_WARNING, _("%s: %s (failed to calculate %s checksum)\n"),
-					pkgname, filepath, cksum_name);
+			pm_printf(
+				ALPM_LOG_WARNING,
+				_("%s: %s (failed to calculate %s checksum)\n"),
+				pkgname,
+				filepath,
+				cksum_name);
 		}
 		return 1;
 	}
 
 	if(!cksum_mtree) {
 		if(!config->quiet) {
-			pm_printf(ALPM_LOG_WARNING, _("%s: %s (%s checksum information not available)\n"),
-					pkgname, filepath, cksum_name);
+			pm_printf(
+				ALPM_LOG_WARNING,
+				_("%s: %s (%s checksum information not available)\n"),
+				pkgname,
+				filepath,
+				cksum_name);
 		}
 		return 1;
 	}
@@ -199,16 +343,26 @@ static int check_file_cksum(const char *pkgname, const char *filepath,
 	if(strcmp(cksum_calc, cksum_mtree) != 0) {
 		if(backup) {
 			if(!config->quiet) {
-				printf("%s%s%s: ", config->colstr.title, _("backup file"),
-						config->colstr.nocolor);
-				printf(_("%s: %s (%s checksum mismatch)\n"),
-						pkgname, filepath, cksum_name);
+				printf(
+					"%s%s%s: ",
+					config->colstr.title,
+					_("backup file"),
+					config->colstr.nocolor);
+				printf(
+					_("%s: %s (%s checksum mismatch)\n"),
+					pkgname,
+					filepath,
+					cksum_name);
 			}
 			return 0;
 		}
 		if(!config->quiet) {
-			pm_printf(ALPM_LOG_WARNING, _("%s: %s (%s checksum mismatch)\n"),
-					pkgname, filepath, cksum_name);
+			pm_printf(
+				ALPM_LOG_WARNING,
+				_("%s: %s (%s checksum mismatch)\n"),
+				pkgname,
+				filepath,
+				cksum_name);
 		}
 		return 1;
 	}
@@ -217,16 +371,26 @@ static int check_file_cksum(const char *pkgname, const char *filepath,
 }
 #endif
 
-static int check_file_sha256sum(const char *pkgname, const char *filepath,
-		struct archive_entry *entry, int backup)
+static int check_file_sha256sum(
+		const char *pkgname,
+		const char *filepath,
+		struct archive_entry *entry,
+		int backup)
 {
 	int errors = 0;
 #if ARCHIVE_VERSION_NUMBER >= 3005000
 	char *cksum_calc = alpm_compute_sha256sum(filepath);
-	char *cksum_mtree = hex_representation(archive_entry_digest(entry,
-													ARCHIVE_ENTRY_DIGEST_SHA256), 32);
-	errors = check_file_cksum(pkgname, filepath, backup, "SHA256", cksum_calc,
-									cksum_mtree);
+	char *cksum_mtree = hex_representation(archive_entry_digest(
+				entry,
+				ARCHIVE_ENTRY_DIGEST_SHA256),
+				32);
+	errors = check_file_cksum(
+			pkgname,
+			filepath,
+			backup,
+			"SHA256",
+			cksum_calc,
+			cksum_mtree);
 	free(cksum_mtree);
 	free(cksum_calc);
 #endif
@@ -247,7 +411,11 @@ int check_pkg_fast(alpm_pkg_t *pkg)
 	rootlen = strlen(root);
 	if(rootlen + 1 > PATH_MAX) {
 		/* we are in trouble here */
-		pm_printf(ALPM_LOG_ERROR, _("path too long: %s%s\n"), root, "");
+		pm_printf(
+			ALPM_LOG_ERROR,
+			_("path too long: %s%s\n"),
+			root,
+			"");
 		return 1;
 	}
 	strcpy(filepath, root);
@@ -262,7 +430,11 @@ int check_pkg_fast(alpm_pkg_t *pkg)
 		size_t plen = strlen(path);
 
 		if(rootlen + 1 + plen > PATH_MAX) {
-			pm_printf(ALPM_LOG_WARNING, _("path too long: %s%s\n"), root, path);
+			pm_printf(
+				ALPM_LOG_WARNING,
+				_("path too long: %s%s\n"),
+				root,
+				path);
 			continue;
 		}
 		strcpy(filepath + rootlen, path);
@@ -272,8 +444,11 @@ int check_pkg_fast(alpm_pkg_t *pkg)
 			int expect_dir = path[plen - 1] == '/' ? 1 : 0;
 			int is_dir = S_ISDIR(st.st_mode) ? 1 : 0;
 			if(expect_dir != is_dir) {
-				pm_printf(ALPM_LOG_WARNING, _("%s: %s (File type mismatch)\n"),
-						pkgname, filepath);
+				pm_printf(
+					ALPM_LOG_WARNING,
+					_("%s: %s (File type mismatch)\n"),
+					pkgname,
+					filepath);
 				++errors;
 			}
 		} else if(exists == 1) {
@@ -282,10 +457,15 @@ int check_pkg_fast(alpm_pkg_t *pkg)
 	}
 
 	if(!config->quiet) {
-		printf(_n("%s: %jd total file, ", "%s: %jd total files, ",
-					(unsigned long)filelist->count), pkgname, (intmax_t)filelist->count);
-		printf(_n("%jd missing file\n", "%jd missing files\n",
-					(unsigned long)errors), (intmax_t)errors);
+		printf(
+			_n("%s: %jd total file, ", "%s: %jd total files, ",
+			(unsigned long)filelist->count),
+			pkgname,
+			(intmax_t)filelist->count);
+		printf(
+			_n("%jd missing file\n", "%jd missing files\n",
+			(unsigned long)errors),
+			(intmax_t)errors);
 	}
 
 	return (errors != 0 ? 1 : 0);
@@ -306,7 +486,11 @@ int check_pkg_full(alpm_pkg_t *pkg)
 	rootlen = strlen(root);
 	if(rootlen + 1 > PATH_MAX) {
 		/* we are in trouble here */
-		pm_printf(ALPM_LOG_ERROR, _("path too long: %s%s\n"), root, "");
+		pm_printf(
+			ALPM_LOG_ERROR,
+			_("path too long: %s%s\n"),
+			root,
+			"");
 		return 1;
 	}
 
@@ -346,21 +530,40 @@ int check_pkg_full(alpm_pkg_t *pkg)
 				continue;
 			}
 
-			/* Do not append root directory as alpm_option_get_dbpath is already
+			/* Do not append root directory as
+			 * alpm_option_get_dbpath is already
 			 * an absolute path */
-			filepath_len = snprintf(filepath, PATH_MAX, "%slocal/%s-%s/%s",
+			filepath_len = snprintf(
+					filepath,
+					PATH_MAX,
+					"%slocal/%s-%s/%s",
 					alpm_option_get_dbpath(config->handle),
-					pkgname, alpm_pkg_get_version(pkg), dbfile);
+					pkgname,
+					alpm_pkg_get_version(pkg),
+					dbfile);
 			if(filepath_len >= PATH_MAX) {
-				pm_printf(ALPM_LOG_WARNING, _("path too long: %slocal/%s-%s/%s\n"),
-						alpm_option_get_dbpath(config->handle),
-						pkgname, alpm_pkg_get_version(pkg), dbfile);
+				pm_printf(
+					ALPM_LOG_WARNING,
+					_("path too long: %slocal/%s-%s/%s\n"),
+					alpm_option_get_dbpath(config->handle),
+					pkgname,
+					alpm_pkg_get_version(pkg),
+					dbfile);
 				continue;
 			}
 		} else {
-			filepath_len = snprintf(filepath, PATH_MAX, "%s%s", root, path);
+			filepath_len = snprintf(
+					filepath,
+					PATH_MAX,
+					"%s%s",
+					root,
+					path);
 			if(filepath_len >= PATH_MAX) {
-				pm_printf(ALPM_LOG_WARNING, _("path too long: %s%s\n"), root, path);
+				pm_printf(
+					ALPM_LOG_WARNING,
+					_("path too long: %s%s\n"),
+					root,
+					path);
 				continue;
 			}
 		}
@@ -379,7 +582,11 @@ int check_pkg_full(alpm_pkg_t *pkg)
 		type = archive_entry_filetype(entry);
 
 		if(type != AE_IFDIR && type != AE_IFREG && type != AE_IFLNK) {
-			pm_printf(ALPM_LOG_WARNING, _("file type not recognized: %s%s\n"), root, path);
+			pm_printf(
+				ALPM_LOG_WARNING,
+				_("file type not recognized: %s%s\n"),
+				root,
+				path);
 			continue;
 		}
 
@@ -407,12 +614,26 @@ int check_pkg_full(alpm_pkg_t *pkg)
 
 		if(type != AE_IFDIR) {
 			/* file or symbolic link */
-			file_errors += check_file_time(pkgname, filepath, &st, entry, backup);
+			file_errors += check_file_time(
+					pkgname,
+					filepath,
+					&st,
+					entry,
+					backup);
 		}
 
 		if(type == AE_IFREG) {
-			file_errors += check_file_size(pkgname, filepath, &st, entry, backup);
-			file_errors += check_file_sha256sum(pkgname, filepath, entry, backup);
+			file_errors += check_file_size(
+					pkgname,
+					filepath,
+					&st,
+					entry,
+					backup);
+			file_errors += check_file_sha256sum(
+					pkgname,
+					filepath,
+					entry,
+					backup);
 		}
 
 		if(config->quiet && file_errors) {
@@ -425,10 +646,15 @@ int check_pkg_full(alpm_pkg_t *pkg)
 	alpm_pkg_mtree_close(pkg, mtree);
 
 	if(!config->quiet) {
-		printf(_n("%s: %jd total file, ", "%s: %jd total files, ",
-					(unsigned long)file_count), pkgname, (intmax_t)file_count);
-		printf(_n("%jd altered file\n", "%jd altered files\n",
-					(unsigned long)errors), (intmax_t)errors);
+		printf(
+			_n("%s: %jd total file, ", "%s: %jd total files, ",
+			(unsigned long)file_count),
+			pkgname,
+			(intmax_t)file_count);
+		printf(
+			_n("%jd altered file\n", "%jd altered files\n",
+			(unsigned long)errors),
+			(intmax_t)errors);
 	}
 
 	return (errors != 0 ? 1 : 0);

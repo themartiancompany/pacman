@@ -1,6 +1,7 @@
 /*
  *  pacman.c
  *
+ *  Copyright (c) 2026 Pellegrino Prevete <pellegrinoprevete@gmail.com>
  *  Copyright (c) 2006-2025 Pacman Development Team <pacman-dev@lists.archlinux.org>
  *  Copyright (c) 2002-2006 by Judd Vinet <jvinet@zeroflux.org>
  *
@@ -24,6 +25,7 @@
 #define PACKAGE_VERSION GIT_VERSION
 #endif
 
+
 #include <stdlib.h> /* atoi */
 #include <stdio.h>
 #include <ctype.h> /* isspace */
@@ -45,6 +47,25 @@
 #include "util.h"
 #include "conf.h"
 #include "sighandler.h"
+
+/* an Android there is
+ * no need for checking the uid;
+ * it's ill-posed doing this way
+ * though as proper root directory type
+ * (app or system) recognition should be
+ * implemented */
+#ifdef \
+	__ANDROID__ || \
+	_WIN32 || \
+	__CYGWIN__
+uid_t _getuid() {
+	return 0;
+}
+#else
+uid_t _getuid() {
+	return getuid();
+}
+#endif
 
 /* list of targets specified on command line */
 static alpm_list_t *pm_targets;
@@ -1178,7 +1199,7 @@ static void cl_to_log(int argc, char *argv[])
 int main(int argc, char *argv[])
 {
 	int ret = 0;
-	uid_t myuid = getuid();
+	uid_t myuid = _getuid();
 
 	console_cursor_hide();
 	install_segv_handler();

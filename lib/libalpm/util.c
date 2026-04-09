@@ -1,6 +1,7 @@
 /*
  *  util.c
  *
+ *  Copyright (c) 2026 Pellegrino Prevete <pellegrinoprevete@gmail.com>
  *  Copyright (c) 2006-2025 Pacman Development Team <pacman-dev@lists.archlinux.org>
  *  Copyright (c) 2002-2006 by Judd Vinet <jvinet@zeroflux.org>
  *  Copyright (c) 2005 by Aurelien Foret <orelien@chez.com>
@@ -96,6 +97,48 @@ char *strsep(char **str, const char *delims)
 	return token;
 }
 #endif
+
+/* android */
+#ifdef __ANDROID__
+
+#include <sys/syscall.h>
+
+int _chroot(alpm_handle_t *handle) {
+	return 0;
+}
+
+const int _LINE_MAX = PATH_MAX;
+
+const char* _tmpdir_get() {
+	return "@ANDROID_ROOT@/tmp";
+}
+
+int _faccessat(int dirfd, const char* path, int mode, int flag) {
+	return syscall(SYS_faccessat, dirfd, path, mode, flag);
+}
+
+#else
+
+void _chroot(alpm_handle_t *handle) {
+	if(strcmp(handle->root, "/") != 0 && chroot(handle->root) != 0) {
+		fprintf(stderr,
+			_("could not change the root directory (%s)\n"),
+			strerror(errno));
+		exit(1);
+}
+
+const int _LINE_MAX = LINE_MAX;
+
+const char* _tmpdir_get() {
+	return "/tmp";
+}
+
+int _faccessat(int dirfd, const char* path, int mode, int flag) {
+	return faccessat(dirfd, path, mode, flag);
+}
+
+#endif
+
 
 int _alpm_makepath(const char *path)
 {
@@ -676,10 +719,7 @@ int _alpm_run_chroot(alpm_handle_t *handle, const char *cmd, char *const argv[],
 		/* use fprintf instead of _alpm_log to send output through the parent */
 		/* don't chroot() to "/": this allows running with less caps when the
 		 * caller puts us in the right root */
-		if(strcmp(handle->root, "/") != 0 && chroot(handle->root) != 0) {
-			fprintf(stderr, _("could not change the root directory (%s)\n"), strerror(errno));
-			exit(1);
-		}
+		_chroot(handle);
 		if(chdir("/") != 0) {
 			fprintf(stderr, _("could not change directory to %s (%s)\n"),
 					"/", strerror(errno));
@@ -703,7 +743,7 @@ int _alpm_run_chroot(alpm_handle_t *handle, const char *cmd, char *const argv[],
 		/* this code runs for the parent only (wait on the child) */
 		int status;
 		char obuf[PIPE_BUF]; /* writes <= PIPE_BUF are guaranteed atomic */
-		char ibuf[LINE_MAX];
+		char ibuf[_LINE_MAX];
 		ssize_t olen = 0, ilen = 0;
 		nfds_t nfds = 2;
 		struct pollfd fds[2], *child2parent = &(fds[0]), *parent2child = &(fds[1]);
@@ -938,7 +978,7 @@ const char *_alpm_filecache_setup(alpm_handle_t *handle)
 	if((tmpdir = getenv("TMPDIR")) && stat(tmpdir, &buf) && S_ISDIR(buf.st_mode)) {
 		/* TMPDIR was good, we can use it */
 	} else {
-		tmpdir = "/tmp";
+		tmpdir = _tmpdir_get();
 	}
 	alpm_option_add_cachedir(handle, tmpdir);
 	cachedir = handle->cachedirs->prev->data;
@@ -1488,11 +1528,11 @@ int _alpm_access(alpm_handle_t *handle, const char *dir, const char *file, int a
 		CALLOC(check_path, len, sizeof(char), RET_ERR(handle, ALPM_ERR_MEMORY, -1));
 		snprintf(check_path, len, "%s%s", dir, file);
 
-		ret = faccessat(AT_FDCWD, check_path, amode, flag);
+		ret = _faccessat(AT_FDCWD, check_path, amode, flag);
 		free(check_path);
 	} else {
 		dir = "";
-		ret = faccessat(AT_FDCWD, file, amode, flag);
+		ret = _faccessat(AT_FDCWD, file, amode, flag);
 	}
 
 	if(ret != 0) {

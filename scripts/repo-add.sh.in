@@ -18,14 +18,21 @@
 #   You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-shopt -s extglob
+shopt \
+  -s \
+  extglob
 
 # gettext initialization
-export TEXTDOMAIN='pacman-scripts'
-export TEXTDOMAINDIR='@localedir@'
+export \
+  TEXTDOMAIN='pacman-scripts' \
+  TEXTDOMAINDIR='@localedir@'
 
-declare -r myver='@PACKAGE_VERSION@'
-declare -r confdir='@sysconfdir@'
+declare \
+  -r \
+  myver='@PACKAGE_VERSION@'
+declare \
+  -r \
+  confdir='@sysconfdir@'
 
 MAKEPKG_LIBRARY=${MAKEPKG_LIBRARY:-'@libmakepkgdir@'}
 
@@ -47,66 +54,130 @@ DB_MODIFIED=0
 WAIT_LOCK=0
 
 # Import libmakepkg
-source "$MAKEPKG_LIBRARY"/util/compress.sh
-source "$MAKEPKG_LIBRARY"/util/message.sh
-source "$MAKEPKG_LIBRARY"/util/parseopts.sh
+source \
+  "${MAKEPKG_LIBRARY}/util/compress.sh"
+source \
+  "${MAKEPKG_LIBRARY}/util/message.sh"
+source \
+  "${MAKEPKG_LIBRARY}/util/parseopts.sh"
 
 # ensure we have a sane umask set
-umask 0022
+umask \
+  0022
 
 # print usage instructions
 usage() {
-	cmd=${0##*/}
-	printf -- "%s (pacman) %s\n\n" "$cmd" "$myver"
-	if [[ $cmd == "repo-add" ]] ; then
-		printf -- "$(gettext "Usage: repo-add [options] <path-to-db> <package> ...\n")"
-		printf -- "\n"
-		printf -- "$(gettext "\
-repo-add will update a package database by reading a package file.\n\
-Multiple packages to add can be specified on the command line.\n")"
-		printf -- "\n"
-		printf -- "$(gettext "Options:\n")"
-		printf -- "$(gettext "  -n, --new         only add packages that are not already in the database\n")"
-		printf -- "$(gettext "  -p, --prevent-downgrade  do not add package to database if a newer version is already present\n")"
-		printf -- "$(gettext "  --include-sigs    include package PGP signatures in the repository database (if available)\n")"
-	elif [[ $cmd == "repo-remove" ]] ; then
-		printf -- "$(gettext "Usage: repo-remove [options] <path-to-db> <packagename> ...\n")"
-		printf -- "\n"
-		printf -- "$(gettext "\
-repo-remove will update a package database by removing the package name\n\
-specified on the command line from the given repo database. Multiple\n\
-packages to remove can be specified on the command line.\n")"
-		printf -- "\n"
-		printf -- "$(gettext "Options:\n")"
-	else
-		printf -- "$(gettext "Please move along, there is nothing to see here.\n")"
-		return
-	fi
-	printf -- "$(gettext "  --nocolor         turn off color in output\n")"
-	printf -- "$(gettext "  -q, --quiet       minimize output\n")"
-	printf -- "$(gettext "  -s, --sign        sign database with GnuPG after update\n")"
-	printf -- "$(gettext "  -k, --key <key>   use the specified key to sign the database\n")"
-	printf -- "$(gettext "  -v, --verify      verify database's signature before update\n")"
-	printf -- "$(gettext "  -R, --remove      remove old package file from disk after updating database\n")"
-	printf -- "$(gettext "  -w, --wait-for-lock  retry to acquire lock file until success\n")"
-	printf -- "$(gettext "\n\
-See %s(8) for more details and descriptions of the available options.\n")" $cmd
-	printf "\n"
-	if [[ $cmd == "repo-add" ]] ; then
-		printf -- "$(gettext "Example:  repo-add /path/to/repo.db.tar.gz pacman-3.0.0-1-i686.pkg.tar.gz\n")"
-	elif [[ $cmd == "repo-remove" ]] ; then
-		printf -- "$(gettext "Example:  repo-remove /path/to/repo.db.tar.gz kernel26\n")"
-	fi
+  local \
+    _repo_add_msg=()
+  cmd=${0##*/}
+  _repo_add_msg+=(
+    "$(gettext \
+         "Usage: repo-add [options] <path-to-db> <package> ...\n")"
+    "\n"
+    "$(gettext \
+         "\
+   will update a package database by reading a package file.\n\
+   packages to add can be specified on the command line.\n")"
+    "\n"
+    "$(gettext \
+         "Options:\n")"
+    "$(gettext \
+         "  -n, --new         only add packages that are not already in the database\n")"
+    "$(gettext \
+         "  -p, --prevent-downgrade  do not add package to database if a newer version is already present\n")"
+    "$(gettext \
+         "  --include-sigs    include package PGP signatures in the repository database (if available)\n")"
+  )
+  _repo_remove_msg=(
+    "$(gettext \
+         "Usage: repo-remove [options] <path-to-db> <packagename> ...\n")"
+    "\n"
+    "$(gettext \
+         "\
+    a package database by removing the package name\n\
+     line from the given repo database. Multiple\n\
+    e specified on the command line.\n")"
+    "\n"
+    "$(gettext \
+         "Options:\n")"
+  )
+  _repo_operation_unkwnown_msg=( 
+    "$(gettext \
+         "Please move along, there is nothing to see here.\n")"
+  )
+  _repo_common_msg=(
+  "$(gettext \
+       "  --nocolor         turn off color in output\n")"
+  "$(gettext \
+       "  -q, --quiet       minimize output\n")"
+  "$(gettext \
+       "  -s, --sign        sign database with GnuPG after update\n")"
+  "$(gettext \
+       "  -k, --key <key>   use the specified key to sign the database\n")"
+  "$(gettext \
+       "  -v, --verify      verify database's signature before update\n")"
+  "$(gettext \
+       "  -R, --remove      remove old package file from disk after updating database\n")"
+  "$(gettext \
+       "  -w, --wait-for-lock  retry to acquire lock file until success\n")"
+  "$(gettext \
+       "\n\
+  ore details and descriptions of the available options.\n") ${cmd}"
+  "\n"
+  )
+  printf -- \
+    "%s (pacman) %s\n\n" \
+    "${cmd}" \
+    "${myver}"
+  if [[ $cmd == "repo-add" ]] ; then
+    for _line in "${_repo_add_msg[*]}"; do
+      printf -- \
+        ${_line}
+    done
+  elif [[ $cmd == "repo-remove" ]] ; then
+    for _line in "${_repo_remove_msg[*]}"; do
+      printf -- \
+        ${_line}
+    done
+  else
+    for _line in "${_repo_operation_unknown_msg[*]}"; do
+      printf -- \
+        ${_line}
+    done
+    return
+  fi
+  for _line in "${_repo_common_msg[*]}"; do
+    printf -- \
+      ${_line}
+  done
+  if [[ $cmd == "repo-add" ]] ; then
+    printf -- \
+      "$(gettext \
+           "Example:  repo-add /path/to/repo.db.tar.gz pacman-3.0.0-1-i686.pkg.tar.gz\n")"
+  elif [[ $cmd == "repo-remove" ]] ; then
+    printf -- \
+      "$(gettext \
+        "Example:  repo-remove /path/to/repo.db.tar.gz kernel26\n")"
+  fi
 }
 
 version() {
-	cmd=${0##*/}
-	printf "%s (pacman) %s\n\n" "$cmd" "$myver"
-	printf -- "Copyright (c) 2006-2025 Pacman Development Team <pacman-dev@lists.archlinux.org>.\n"
-	printf '\n'
-	printf -- "$(gettext "\
+  local \
+    _msg=()
+  _msg=(
+    "%s (pacman) %s\n\n" "$cmd" "$myver"
+    "Copyright (c) 2026 Pellegrino Prevete <pellegrinoprevete@gmail.com>.\n"
+    "Copyright (c) 2006-2025 Pacman Development Team <pacman-dev@lists.archlinux.org>.\n"
+    '\n'
+    "$(gettext "\
 This is free software; see the source for copying conditions.\n\
 There is NO WARRANTY, to the extent permitted by law.\n")"
+  )
+  cmd=${0##*/}
+  for _line in "${_msg[*]}"; do
+    printf -- \
+      ${_line}
+  done
 }
 
 
@@ -114,27 +185,35 @@ There is NO WARRANTY, to the extent permitted by law.\n")"
 #		arg1 - Entry name
 #		...  - value(s)
 format_entry() {
-	local field=$1; shift
-
-	if [[ $1 ]]; then
-		printf '%%%s%%\n' "$field"
-		printf '%s\n' "$@"
-		printf '\n'
-	fi
+  local \
+    _field=${1}; \
+  shift
+  if [[ "${1}" ]]; then
+  printf \
+    '%%%s%%\n' \
+    "${_field}"
+  printf \
+    '%s\n' \
+    "$@"
+  printf \
+    '\n'
+  fi
 }
 
 find_pkgentry() {
-	local pkgname=$1
-	local pkgentry
-
-	for pkgentry in "$tmpdir/db/$pkgname"*; do
-		name=${pkgentry##*/}
-		if [[ ${name%-*-*} = "$pkgname" ]]; then
-			echo $pkgentry
-			return 0
-		fi
-	done
-	return 1
+  local \
+    pkgname="${1}" \
+    _pkgentry
+  
+  for _pkgentry in "${tmpdir}/db/${pkgname}"*; do
+    name=${_pkgentry##*/}
+    if [[ ${name%-*-*} = "${pkgname}" ]]; then
+      echo \
+        "${_pkgentry}"
+      return 0
+    fi
+  done
+  return 1
 }
 
 check_gpg() {
@@ -614,132 +693,200 @@ if [[ $cmd != "repo-add" && $cmd != "repo-remove" ]]; then
 	error "$(gettext "Invalid command name '%s' specified.")" "$cmd"
 	exit 1
 fi
-
-tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/repo-tools.XXXXXXXXXX") || {
-	error "$(gettext "Cannot create temp directory for database building.")";
-	exit 1; }
+-tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/repo-tools.XXXXXXXXXX") || {
++tmpdir=$(mktemp -d "${TMPDIR:-@TERMUX_PREFIX@/tmp}/repo-tools.XXXXXXXXXX") || {
+ 
+tmpdir=$(
+  mktemp \
+    -d \
+    "${TMPDIR:-/tmp}/repo-tools.XXXXXXXXXX") || \
+  {
+    error \
+      "$(gettext \
+           "Cannot create temp directory for database building.")";
+      exit \
+        1; }
 
 for repo in "db" "files"; do
-	mkdir "$tmpdir/$repo"
+  mkdir \
+    "${tmpdir}/${repo}"
 done
 
-trap 'clean_up' EXIT
-for signal in TERM HUP QUIT; do
-	trap "trap_exit \"$(gettext "%s signal caught. Exiting...")\" \"$signal\"" "$signal"
+trap \
+  'clean_up' \
+  EXIT
+for _signal in TERM HUP QUIT; do
+  trap \
+    "trap_exit \"$(gettext \
+                     "%s signal caught. Exiting...")\" \"${_signal}\"" \
+    "${_signal}"
 done
-trap 'trap_exit "$(gettext "Aborted by user! Exiting...")"' INT
-trap 'trap_exit "$(gettext "An unknown error has occurred. Exiting...")"' ERR
-
+trap \
+  'trap_exit "$(gettext "Aborted by user! Exiting...")"' \
+  INT
+trap \
+  'trap_exit "$(gettext "An unknown error has occurred. Exiting...")"' \
+  ERR
 
 OPT_SHORT="k:npqRsvw"
-OPT_LONG=('include-sigs' 'key:' 'new' 'nocolor' 'quiet' 'prevent-downgrade' 'remove'
-          'sign' 'verify' 'wait-for-lock')
-if ! parseopts "$OPT_SHORT" "${OPT_LONG[@]}" -- "$@"; then
-	exit 1 # E_INVALID_OPTION
+OPT_LONG=(
+  'include-sigs'
+  'key:'
+  'new'
+  'nocolor'
+  'quiet'
+  'prevent-downgrade'
+  'remove'
+  'sign'
+  'verify'
+  'wait-for-lock'
+)
+if ! parseopts \
+      "${OPT_SHORT}" \
+      "${OPT_LONG[@]}" -- \
+      "$@"; then
+  exit \
+    1 # E_INVALID_OPTION
 fi
-set -- "${OPTRET[@]}"
-unset OPT_SHORT OPT_LONG OPTRET
+set -- \
+  "${OPTRET[@]}"
+unset \
+  OPT_SHORT OPT_LONG OPTRET
 
-declare -a args
+declare \
+  -a \
+  args
 # parse arguments
 while true; do
-	case $1 in
-		-q|--quiet) QUIET=1;;
-		-n|--new) ONLYADDNEW=1;;
-		-R|--remove) RMEXISTING=1;;
-		--nocolor) USE_COLOR='n';;
-		-s|--sign)
-			SIGN=1
-			;;
-		-k|--key)
-			KEY=1
-			shift
-			GPGKEY=$1
-			;;
-		-v|--verify)
-			VERIFY=1
-			;;
-		-p|--prevent-downgrade)
-			PREVENT_DOWNGRADE=1
-			;;
-		--include-sigs)
-			INCLUDE_SIGS=1
-			;;
-		-w|--wait-for-lock)
-			WAIT_LOCK=1
-			;;
-		--)
-			shift
-			break
-			;;
-	esac
-	shift
+  case \
+    ${1} in
+    -q|--quiet)
+      QUIET=1;;
+    -n|--new)
+      ONLYADDNEW=1;;
+    -R|--remove)
+      RMEXISTING=1;;
+    --nocolor)
+      USE_COLOR='n';;
+    -s|--sign)
+      SIGN=1;;
+    -k|--key)
+      KEY=1
+        shift
+      GPGKEY=${1}
+      ;;
+    -v|--verify)
+      VERIFY=1
+      ;;
+    -p|--prevent-downgrade)
+      PREVENT_DOWNGRADE=1
+      ;;
+    --include-sigs)
+      INCLUDE_SIGS=1
+      ;;
+    -w|--wait-for-lock)
+      WAIT_LOCK=1
+      ;;
+    --)
+      shift
+        break
+      ;;
+    esac
+  shift
 done
 
-args=("$@")
+args=(
+  "$@"
+)
 
 # check if messages are to be printed using color
 if [[ -t 2 && $USE_COLOR != "n" ]]; then
-	colorize
+  colorize
 else
-	unset ALL_OFF BOLD BLUE GREEN RED YELLOW
+  unset \
+    ALL_OFF \
+    BOLD \
+    BLUE \
+    GREEN \
+    RED \
+    YELLOW
 fi
 
 REPO_DB_FILE=${args[0]}
 if [[ -z $REPO_DB_FILE ]]; then
-	usage
-	exit 1
+  usage
+  exit \
+    1
 fi
 
 if [[ $REPO_DB_FILE == /* ]]; then
-	LOCKFILE=$REPO_DB_FILE.lck
+  LOCKFILE="${REPO_DB_FILE}.lck"
 else
-	LOCKFILE=$PWD/$REPO_DB_FILE.lck
+  LOCKFILE="${PWD}/${REPO_DB_FILE}.lck"
 fi
 
-verify_repo_extension "$REPO_DB_FILE"
+verify_repo_extension \
+  "${REPO_DB_FILE}"
 
 REPO_DB_PREFIX=${REPO_DB_FILE##*/}
 REPO_DB_PREFIX=${REPO_DB_PREFIX%.db.*}
 REPO_DB_SUFFIX=${REPO_DB_FILE##*.db.}
 
 if (( SIGN || VERIFY )); then
-	check_gpg
+  check_gpg
 fi
 
 if (( VERIFY && ${#args[@]} == 1 )); then
-	for repo in "db" "files"; do
-		dbfile=${repodir}/$REPO_DB_PREFIX.$repo.$REPO_DB_SUFFIX
-
-		if [[ -f $dbfile ]]; then
-			verify_signature "$dbfile"
-		fi
-	done
-	exit 0
+  for _repo \
+    in "db" \
+       "files"; do
+    dbfile="${repodir}/${REPO_DB_PREFIX}.${repo}.${REPO_DB_SUFFIX}"
+    if [[ -f $dbfile ]]; then
+      verify_signature \
+        "${dbfile}"
+    fi
+  done
+  exit \
+    0
 fi
 
 prepare_repo_db
 
 fail=0
 for arg in "${args[@]:1}"; do
-	case $cmd in
-		repo-add) add "$arg" ;;
-		repo-remove) remove "$arg" ;;
-	esac || fail=1
+  case \
+    "${cmd}" in
+    repo-add)
+      add \
+        "${arg}" ;;
+    repo-remove)
+      remove \
+        "${arg}" ;;
+  esac || \
+  fail=1
 done
 
 # if the whole operation was a success, re-zip and rotate databases
 if (( fail )); then
-	msg "$(gettext "Package database was not modified due to errors.")"
-	exit 1
+  msg \
+    "$(gettext \
+         "Package database was not modified due to errors.")"
+  exit \
+    1
 fi
 
 if (( DB_MODIFIED )) || [[ ! -f $REPO_DB_FILE ]]; then
-	msg "$(gettext "Creating updated database file '%s'")" "$REPO_DB_FILE"
-	create_db
-	rotate_db
+  msg \
+    "$(gettext \
+         "Creating updated database file '%s'")" \
+         "${REPO_DB_FILE}"
+  create_db
+  rotate_db
 else
-	msg "$(gettext "No changes made to package database.")"
+  msg \
+    "$(gettext \
+         "No changes made to package database.")"
 fi
 
-exit 0
+exit \
+  0

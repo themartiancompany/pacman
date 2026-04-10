@@ -258,40 +258,86 @@ update_pkgver() {
 
 # Print 'source not found' error message and exit makepkg
 missing_source_file() {
-	error "$(gettext "Unable to find source file %s.")" "$(get_filename "$1")"
-	plainerr "$(gettext "Aborting...")"
-	exit $E_MISSING_FILE
+  local \
+    _source_file="${1}"
+  error \
+    "$(gettext \
+         "Unable to find source file %s.")" \
+         "$(get_filename \
+              "${_source_file}")"
+  plainerr \
+    "$(gettext \
+         "Aborting...")"
+  exit \
+    "${E_MISSING_FILE}"
 }
 
 run_pacman() {
-	local cmd cmdescape
-	if [[ $1 = -@(T|Q)*([[:alpha:]]) ]]; then
-		cmd=("$PACMAN_PATH" "$@")
-	else
-		cmd=("$PACMAN_PATH" "${PACMAN_OPTS[@]}" "$@")
-		cmdescape="$(printf '%q ' "${cmd[@]}")"
-		if (( ${#PACMAN_AUTH[@]} )); then
-			if in_array '%c' "${PACMAN_AUTH[@]}"; then
-				cmd=("${PACMAN_AUTH[@]/\%c/$cmdescape}")
-			else
-				cmd=("${PACMAN_AUTH[@]}" "${cmd[@]}")
-			fi
-		elif type -p sudo >/dev/null; then
-			cmd=(sudo -k "${cmd[@]}")
-		else
-			cmd=(su root -c "$cmdescape")
-		fi
-		local lockfile="$(pacman-conf DBPath)/db.lck"
-		while [[ -f $lockfile ]]; do
-			local timer=0
-			msg "$(gettext "Pacman is currently in use, please wait...")"
-			while [[ -f $lockfile ]] && (( timer < 10 )); do
-				(( ++timer ))
-				sleep 3
-			done
-		done
-	fi
-	"${cmd[@]}"
+  local \
+    _cmd \
+    _cmdescape \
+    _timer
+  if [[ $1 = -@(T|Q)*([[:alpha:]]) ]]; then
+    _cmd=(
+      "$PACMAN_PATH"
+      "$@"
+    )
+  else
+    _cmd=(
+      "${PACMAN_PATH}"
+      "${PACMAN_OPTS[@]}"
+      "$@"
+    )
+    _cmdescape="$(
+      printf \
+        '%q ' \
+        "${_cmd[@]}")"
+    if (( ${#PACMAN_AUTH[@]} )); then
+      if in_array \
+           '%c' \
+           "${PACMAN_AUTH[@]}"; then
+        _cmd=(
+          "${PACMAN_AUTH[@]/\%c/$_cmdescape}"
+        )
+      else
+        _cmd=(
+          "${PACMAN_AUTH[@]}" \
+          "${_cmd[@]}"
+        )
+      fi
+    elif type \
+           -p \
+           "sudo" \
+	   >"/dev/null"; then
+      _cmd=(
+        sudo
+          -k
+          "${_cmd[@]}")
+    else
+      _cmd=(
+        su
+          "root" \
+          -c \
+            "$_cmdescape")
+    fi
+    local \
+      lockfile="$(
+        pacman-conf \
+          "DBPath")/db.lck"
+    while [[ -f $lockfile ]]; do
+      _timer=0
+      msg \
+        "$(gettext
+             "Pacman is currently in use, please wait...")"
+      while [[ -f $lockfile ]] && \
+               (( _timer < 10 )); do
+      	(( ++_timer ))
+      	sleep \
+          3
+      done
+    done
+    fi
+"${_cmd[@]}"
 }
 
 check_deps() {

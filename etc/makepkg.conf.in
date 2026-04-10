@@ -3,18 +3,36 @@
 # @sysconfdir@/makepkg.conf
 #
 
+_os="$(
+  uname \
+    -o)"
+
+if [[ "${_os}" == "Android" ]]; then
+  _bin="$(
+    dirname \
+      "$(command \
+           -v \
+	   "env")")"
+else
+  _bin="/usr/bin"
+fi
+
+
 #########################################################################
 # SOURCE ACQUISITION
 #########################################################################
 #
 #-- The download utilities that makepkg should use to acquire sources
 #  Format: 'protocol::agent'
-DLAGENTS=('file::/usr/bin/curl -qgC - -o %o %u'
-          'ftp::/usr/bin/curl -qgfC - --ftp-pasv --retry 3 --retry-delay 3 -o %o %u'
-          'http::/usr/bin/curl -qgb "" -fLC - --retry 3 --retry-delay 3 -o %o %u'
-          'https::/usr/bin/curl -qgb "" -fLC - --retry 3 --retry-delay 3 -o %o %u'
-          'rsync::/usr/bin/rsync --no-motd -z %u %o'
-          'scp::/usr/bin/scp -C %u %o')
+DLAGENTS=(
+  "evmfs::${_bin}/evmfs -v -o %o %u"
+  "file::/${_bin}/curl -qgC - -o %o %u"
+  "ftp::${_bin}/curl -qgfC - --ftp-pasv --retry 3 --retry-delay 3 -o %o %u"
+  "http::${_bin}/curl -qgb "" -fLC - --retry 3 --retry-delay 3 -o %o %u"
+  "https::${_bin}/curl -qgb "" -fLC - --retry 3 --retry-delay 3 -o %o %u"
+  "rsync::${_bin}/rsync --no-motd -z %u %o"
+  "scp::${_bin}/scp -C %u %o"
+)
 
 # Other common tools:
 # /usr/bin/snarf
@@ -23,11 +41,13 @@ DLAGENTS=('file::/usr/bin/curl -qgC - -o %o %u'
 
 #-- The package required by makepkg to download VCS sources
 #  Format: 'protocol::package'
-VCSCLIENTS=('bzr::breezy'
-            'fossil::fossil'
-            'git::git'
-            'hg::mercurial'
-            'svn::subversion')
+VCSCLIENTS=(
+  'bzr::breezy'
+  'fossil::fossil'
+  'git::git'
+  'hg::mercurial'
+  'svn::subversion'
+)
 
 #########################################################################
 # ARCHITECTURE, COMPILE FLAGS

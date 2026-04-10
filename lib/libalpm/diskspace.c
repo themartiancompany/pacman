@@ -1,6 +1,8 @@
 /*
  *  diskspace.c
  *
+ *  Copyright (c) 2026 Pellegrino Prevete <pellegrinoprevete@gmail.com>
+ *  Copyright (c) 2024 Ivan Max <mixython@gmail.com>
  *  Copyright (c) 2010-2025 Pacman Development Team <pacman-dev@lists.archlinux.org>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -49,6 +51,83 @@
 #include "log.h"
 #include "trans.h"
 #include "handle.h"
+
+
+/* android */
+#ifdef __ANDROID__
+
+static int _free_space_check()
+{
+	if((int)needed >= 0 && (fsblkcnt_t)needed > mp->fsp.f_bavail) {
+		return 1;
+	}
+	return 0;
+}
+
+static int check_mountpoint(
+		alpm_handle_t *handle,
+		alpm_mountpoint_t *mp)
+{
+	/* cushion is roughly min(5% capacity, 20MiB) */
+	fsblkcnt_t fivepc = (mp->fsp.f_blocks / 20) + 1;
+	fsblkcnt_t twentymb = (20 * 1024 * 1024 / mp->fsp.f_bsize) + 1;
+	fsblkcnt_t cushion = fivepc < twentymb ? fivepc : twentymb;
+	blkcnt_t needed = mp->max_blocks_needed + cushion;
+
+	_alpm_log(
+		handle,
+		ALPM_LOG_DEBUG,
+		"partition %s, needed %jd, cushion %ju, free %ju\n",
+		mp->mount_dir,
+		(intmax_t)mp->max_blocks_needed,
+		(uintmax_t)cushion,
+		(uintmax_t)mp->fsp.f_bavail);
+
+	if((int)needed >= 0 && (fsblkcnt_t)needed > mp->fsp.f_bavail) {
+		_alpm_log(
+			handle, ALPM_LOG_ERROR,
+			_("Partition %s too full: %jd blocks needed, %ju blocks free\n"),
+			mp->mount_dir,
+			(intmax_t)needed,
+			(uintmax_t)mp->fsp.f_bavail);
+		return 1;
+	}
+	return 0;
+}
+
+#else
+
+static int check_mountpoint(
+		alpm_handle_t *handle,
+		alpm_mountpoint_t *mp)
+{
+	/* cushion is roughly min(5% capacity, 20MiB) */
+	fsblkcnt_t fivepc = (mp->fsp.f_blocks / 20) + 1;
+	fsblkcnt_t twentymb = (20 * 1024 * 1024 / mp->fsp.f_bsize) + 1;
+	fsblkcnt_t cushion = fivepc < twentymb ? fivepc : twentymb;
+	blkcnt_t needed = mp->max_blocks_needed + cushion;
+
+	_alpm_log(
+		handle,
+		ALPM_LOG_DEBUG,
+		"partition %s, needed %jd, cushion %ju, free %ju\n",
+		mp->mount_dir,
+		(intmax_t)mp->max_blocks_needed,
+		(uintmax_t)cushion,
+		(uintmax_t)mp->fsp.f_bavail);
+	if(needed >= 0 && (fsblkcnt_t)needed > mp->fsp.f_bavail) {
+		_alpm_log(
+			handle, ALPM_LOG_ERROR,
+			_("Partition %s too full: %jd blocks needed, %ju blocks free\n"),
+			mp->mount_dir,
+			(intmax_t)needed,
+			(uintmax_t)mp->fsp.f_bavail);
+		return 1;
+	}
+	return 0;
+}
+
+#ifdef
 
 static int mount_point_cmp(const void *p1, const void *p2)
 {
@@ -346,27 +425,6 @@ static int calculate_installed_size(alpm_handle_t *handle,
 		mp->used |= USED_INSTALL;
 	}
 
-	return 0;
-}
-
-static int check_mountpoint(alpm_handle_t *handle, alpm_mountpoint_t *mp)
-{
-	/* cushion is roughly min(5% capacity, 20MiB) */
-	fsblkcnt_t fivepc = (mp->fsp.f_blocks / 20) + 1;
-	fsblkcnt_t twentymb = (20 * 1024 * 1024 / mp->fsp.f_bsize) + 1;
-	fsblkcnt_t cushion = fivepc < twentymb ? fivepc : twentymb;
-	blkcnt_t needed = mp->max_blocks_needed + cushion;
-
-	_alpm_log(handle, ALPM_LOG_DEBUG,
-			"partition %s, needed %jd, cushion %ju, free %ju\n",
-			mp->mount_dir, (intmax_t)mp->max_blocks_needed,
-			(uintmax_t)cushion, (uintmax_t)mp->fsp.f_bavail);
-	if(needed >= 0 && (fsblkcnt_t)needed > mp->fsp.f_bavail) {
-		_alpm_log(handle, ALPM_LOG_ERROR,
-				_("Partition %s too full: %jd blocks needed, %ju blocks free\n"),
-				mp->mount_dir, (intmax_t)needed, (uintmax_t)mp->fsp.f_bavail);
-		return 1;
-	}
 	return 0;
 }
 

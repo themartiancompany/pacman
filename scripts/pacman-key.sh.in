@@ -3,6 +3,8 @@
 #   pacman-key - manages pacman's keyring
 #                Based on apt-key, from Debian
 #
+#   Copyright (c) 2026 Pellegrino Prevete <pellegrinoprevete@gmail.com>
+#   Copyright (c) 2024 Ivan Max <mixython@gmail.com>
 #   Copyright (c) 2010-2025 Pacman Development Team <pacman-dev@lists.archlinux.org>
 #
 #   This program is free software; you can redistribute it and/or modify
@@ -18,6 +20,34 @@
 #   You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
+
+
+--- pacman-7.0.0/scripts/pacman-key.sh.in	2024-07-14 12:11:18.000000000 +0300
++++ pacman-7.0.0/scripts/pacman-key.sh.in.patch	2024-09-15 14:00:52.768174727 +0300
+@@ -266,11 +266,6 @@
+ 		exit 1
+ 	fi
+ 
+-	if (( !(EXPORT || FINGER || LISTKEYS || LISTSIGS || VERIFY) && EUID != 0 )); then
+-		error "$(gettext "You do not have sufficient permissions to run this command.")"
+-		exit 1
+-	fi
+-
+ 	if (( LSIGNKEY || POPULATE )); then
+ 		if [[ $(secret_keys_available) -lt 1 ]]; then
+ 			error "$(gettext "There is no secret key available to sign with.")"
+@@ -691,11 +686,6 @@
+ 	exit 1
+ fi
+ 
+-if (( (ADD || DELETE || EDITKEY || IMPORT || IMPORT_TRUSTDB || INIT || LSIGNKEY || POPULATE || RECEIVE || REFRESH || UPDATEDB) && EUID != 0 )); then
+-	error "$(gettext "%s needs to be run as root for this operation.")" "pacman-key"
+-	exit 1
+-fi
+-
+ CONFIG=${CONFIG:-@sysconfdir@/pacman.conf}
+ if [[ ! -r "${CONFIG}" ]]; then
+ 	error "$(gettext "%s configuration file '%s' not found.")" "pacman" "$CONFIG"
 
 # gettext initialization
 export TEXTDOMAIN='pacman-scripts'
@@ -691,14 +721,32 @@ if ! type -p gpg >/dev/null; then
 	exit 1
 fi
 
-if (( (ADD || DELETE || EDITKEY || IMPORT || IMPORT_TRUSTDB || INIT || LSIGNKEY || POPULATE || RECEIVE || REFRESH || UPDATEDB) && EUID != 0 )); then
-	error "$(gettext "%s needs to be run as root for this operation.")" "pacman-key"
-	exit 1
+if (( (ADD || \
+       DELETE || \
+       EDITKEY || \
+       IMPORT || \
+       IMPORT_TRUSTDB || \
+       INIT || \
+       LSIGNKEY || \
+       POPULATE || \
+       RECEIVE || \
+       REFRESH || \
+       UPDATEDB) && EUID != 0 )); then
+  error \
+    "$(gettext \
+         "%s needs to be run as root for this operation.")" \
+		"pacman-key"
+  exit \
+    1
 fi
 
 CONFIG=${CONFIG:-@sysconfdir@/pacman.conf}
 if [[ ! -r "${CONFIG}" ]]; then
-	error "$(gettext "%s configuration file '%s' not found.")" "pacman" "$CONFIG"
+  error \
+    "$(gettext \
+         "%s configuration file '%s' not found.")" \
+		"pacman" \
+		"$CONFIG"
 	exit 1
 fi
 
@@ -706,30 +754,65 @@ KEYRING_IMPORT_DIR=${KEYRING_IMPORT_DIR:-"@keyringdir@"}
 
 # if PACMAN_KEYRING_DIR isn't assigned, try to get it from the config
 # file, falling back on a hard default
-PACMAN_KEYRING_DIR=${PACMAN_KEYRING_DIR:-$(pacman-conf --config="$CONFIG" gpgdir)}
+_pacman_gpgdir="$(
+  pacman-conf \
+    --config="$CONFIG" \
+    "gpgdir")"
+PACMAN_KEYRING_DIR="${PACMAN_KEYRING_DIR:-${_pacman_gpgdir}}"
 
-GPG_PACMAN=(gpg --homedir "${PACMAN_KEYRING_DIR}" --no-permission-warning)
+GPG_PACMAN=(
+  gpg
+    --homedir
+    "${PACMAN_KEYRING_DIR}"
+    --no-permission-warning
+)
 if [[ -n ${KEYSERVER} ]]; then
-	GPG_PACMAN+=(--keyserver "${KEYSERVER}")
+  GPG_PACMAN+=(
+    --keyserver
+    "${KEYSERVER}"
+)
 fi
 
 # check only a single operation has been given
 # don't include UPDATEDB in here as other opts can induce it
-numopt=$(( ADD + DELETE + EDITKEY + EXPORT + FINGER + IMPORT + IMPORT_TRUSTDB +
-		INIT + LISTKEYS + LISTSIGS + LSIGNKEY + POPULATE + RECEIVE + REFRESH + VERIFY ))
+numopt=$((
+  ADD +
+  DELETE +
+  EDITKEY +
+  EXPORT +
+  FINGER +
+  IMPORT +
+  IMPORT_TRUSTDB +
+  INIT +
+  LISTKEYS +
+  LISTSIGS +
+  LSIGNKEY +
+  POPULATE +
+  RECEIVE +
+  REFRESH +
+  VERIFY ))
 
 case $numopt in
-	0)
-		if (( ! UPDATEDB )); then
-			error "$(gettext "no operation specified (use -h for help)")"
-			exit 1
-		fi
-		;;
-	[!1])
-		error "$(gettext "Multiple operations specified.")"
-		msg "$(gettext "Please run %s with each operation separately.")" "pacman-key"
-		exit 1
-		;;
+  0)
+    if (( ! UPDATEDB )); then
+      error \
+        "$(gettext \
+             "no operation specified (use -h for help)")"
+      exit \
+        1
+    fi
+    ;;
+  [!1])
+    error \
+      "$(gettext \
+           "Multiple operations specified.")"
+    msg \
+      "$(gettext \
+           "Please run %s with each operation separately.")" \
+           "pacman-key"
+    exit \
+		  1
+    ;;
 esac
 
 # check for targets where needed

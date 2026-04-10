@@ -2,6 +2,7 @@
  *  check.c
  *
  *  Copyright (c) 2026 Pellegrino Prevete <pellegrinoprevete@gmail.com>
+ *  Copyright (c) 2024 Ivan Max <mixython@gmail.com>
  *  Copyright (c) 2012-2025 Pacman Development Team <pacman-dev@lists.archlinux.org>
  *
  *  This program is free software; you can redistribute it and/or modify

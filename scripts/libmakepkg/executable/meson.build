@@ -1,11 +1,17 @@
 libmakepkg_module = 'executable'
 
+# whats android value
+_system = host_machine.system()
+
+message(
+  _system)
+
 sources = [
   'ccache.sh.in',
   'checksum.sh.in',
   'distcc.sh.in',
-  'fakeroot.sh.in',
   'debugedit.sh.in',
+  'fakeroot.sh.in',
   'gpg.sh.in',
   'gzip.sh.in',
   'pacman.sh.in',
@@ -15,8 +21,20 @@ sources = [
   'vcs.sh.in',
 ]
 
+# enable after '_system'
+# variable value is determined
+# if _system != "android"
+#   sources += [
+#     'fakeroot.sh.in',
+#     'sudo.sh.in',
+#   ]
+# endif
+
 foreach src : sources
-  output_dir = join_paths(get_option('datadir'), 'makepkg', libmakepkg_module)
+  output_dir = join_paths(
+                 get_option('datadir'),
+                'makepkg',
+                libmakepkg_module)
 
   custom_target(
     libmakepkg_module + '_' + src.underscorify(),

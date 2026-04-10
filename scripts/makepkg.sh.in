@@ -2,6 +2,7 @@
 #
 #   makepkg - make packages compatible for use with pacman
 #
+#   Copyright (c) 2026 Pellegrino Prevete <pellegrinoprevete@gmail.com>
 #   Copyright (c) 2006-2025 Pacman Development Team <pacman-dev@lists.archlinux.org>
 #   Copyright (c) 2002-2006 by Judd Vinet <jvinet@zeroflux.org>
 #   Copyright (c) 2005 by Aurelien Foret <orelien@chez.com>
@@ -24,25 +25,50 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# makepkg uses quite a few external programs during its execution. You
-# need to have at least the following installed for makepkg to function:
-#   awk, bsdtar (libarchive), bzip2, coreutils, fakeroot, file, find (findutils),
-#   gettext, gpg, grep, gzip, sed, tput (ncurses), xz
+# makepkg uses quite a few external programs
+# during its execution. You need to have at
+# least the following installed for makepkg to
+# function:
+# - awk,
+# - bsdtar
+# - (libarchive),
+# - bzip2,
+# - coreutils,
+# - fakeroot,
+# - file,
+# - find (findutils),
+# - gettext,
+# - gpg,
+# - grep,
+# - gzip,
+# - sed,
+# - tput (ncurses),
+# - xz
 
 # gettext initialization
-export TEXTDOMAIN='pacman-scripts'
-export TEXTDOMAINDIR='@localedir@'
+export \
+  TEXTDOMAIN='pacman-scripts' \
+  TEXTDOMAINDIR='@localedir@'
 
 # file -i does not work on Mac OSX unless legacy mode is set
-export COMMAND_MODE='legacy'
+export \
+  COMMAND_MODE='legacy'
 # Ensure CDPATH doesn't screw with our cd calls
-unset CDPATH
+unset \
+  CDPATH
 # Ensure GREP_OPTIONS doesn't screw with our grep calls
-unset GREP_OPTIONS
+unset \
+  GREP_OPTIONS
 
-declare -r makepkg_version='@PACKAGE_VERSION@'
-declare -r confdir='@sysconfdir@'
-declare -r BUILDSCRIPT='@BUILDSCRIPT@'
+declare \
+  -r \
+  makepkg_version='@PACKAGE_VERSION@'
+declare \
+  -r \
+  confdir='@sysconfdir@'
+declare \
+  -r \
+  BUILDSCRIPT='@BUILDSCRIPT@'
 
 MAKEPKG_LIBRARY=${MAKEPKG_LIBRARY:-'@libmakepkgdir@'}
 
@@ -89,29 +115,41 @@ shopt -s extglob
 ### SUBROUTINES ###
 
 # Import libmakepkg
-for lib in "$MAKEPKG_LIBRARY"/*.sh; do
-	source "$lib"
+for _lib in "${MAKEPKG_LIBRARY}/"*".sh"; do
+  source \
+    "${_lib}"
 done
 
 ##
-# Special exit call for traps, Don't print any error messages when inside,
-# the fakeroot call, the error message will be printed by the main call.
+# Special exit call for traps, Don't print
+# any error messages when inside,
+# the fakeroot call, the error message will
+# be printed by the main call.
 ##
 trap_exit() {
-	local signal=$1; shift
+  local \
+    signal=${1}; shift
+  if (( ! INFAKEROOT )); then
+    echo
+    error \
+      "$@"
+  fi
+  [[ -n ${srclinks} ]] && \
+    rm \
+      -rf \
+        "${srclinks}"
 
-	if (( ! INFAKEROOT )); then
-		echo
-		error "$@"
-	fi
-	[[ -n $srclinks ]] && rm -rf "$srclinks"
-
-	# Kill all child processes so that they are not left orphaned upon exit.
-	[[ -n "$(jobs -p)" ]] && kill "$(jobs -p)" 2>/dev/null
-
-	# unset the trap for this signal, and then call the default handler
-	trap -- "$signal"
-	kill "-$signal" "$$"
+  # Kill all child processes so that they are not
+  # left orphaned upon exit.
+  [[ -n "$(jobs -p)" ]] && \
+    kill \
+      "$(jobs \
+           -p)" \
+      2>"/dev/null"
+  # unset the trap for this signal, and then
+  # call the default handler
+  trap -- "$signal"
+    kill "-$signal" "$$"
 }
 
 

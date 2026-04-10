@@ -3,6 +3,7 @@
  *
  *  Copyright (c) 2026 Pellegrino Prevete <pellegrinoprevete@gmail.com>
  *  Copyright (c) 2006-2025 Pacman Development Team <pacman-dev@lists.archlinux.org>
+ *  Copyright (c) 2024 Ivan Max <mixython@gmail.com>
  *  Copyright (c) 2002-2006 by Judd Vinet <jvinet@zeroflux.org>
  *  Copyright (c) 2005 by Aurelien Foret <orelien@chez.com>
  *  Copyright (c) 2005 by Christian Hamar <krics@linuxforum.hu>

@@ -109,7 +109,7 @@ static int check_file_permissions(
 	}
 
 	/* gid */
-+	if(st->st_uid != getuid()) {
+	if(st->st_uid != getuid()) {
 		errors++;
 		if(!config->quiet) {
 			pm_printf(
@@ -598,7 +598,6 @@ int check_pkg_full(alpm_pkg_t *pkg)
 			errors++;
 			continue;
 		}
-		# hurr
 		file_errors += check_file_permissions(
 				pkgname,
 				filepath,

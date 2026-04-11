@@ -648,7 +648,6 @@ int _alpm_run_chroot(alpm_handle_t *handle, const char *cmd, char *const argv[],
 	int child2parent_pipefd[2], parent2child_pipefd[2];
 	int cwdfd;
 	int retval = 0;
-	int chroot_retval = 0;
 
 #define HEAD 1
 #define TAIL 0

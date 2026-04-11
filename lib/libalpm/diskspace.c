@@ -56,14 +56,6 @@
 /* android */
 #ifdef __ANDROID__
 
-static int _free_space_check()
-{
-	if((int)needed >= 0 && (fsblkcnt_t)needed > mp->fsp.f_bavail) {
-		return 1;
-	}
-	return 0;
-}
-
 static int check_mountpoint(
 		alpm_handle_t *handle,
 		alpm_mountpoint_t *mp)

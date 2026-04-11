@@ -54,17 +54,37 @@
  * though as proper root directory type
  * (app or system) recognition should be
  * implemented */
-#ifdef \
-	__ANDROID__ || \
-	_WIN32 || \
-	__CYGWIN__
+
+#ifdef __ANDROID__
+
 uid_t _getuid() {
 	return 0;
 }
-#else
+
+#ifdef
+
+#ifdef __linux__
+
 uid_t _getuid() {
 	return getuid();
 }
+
+#endif
+
+#ifdef _WIN32
+
+uid_t _getuid() {
+	return 0;
+}
+
+#endif
+
+#ifdef __CYGWIN__
+
+uid_t _getuid() {
+	return 0;
+}
+
 #endif
 
 /* list of targets specified on command line */

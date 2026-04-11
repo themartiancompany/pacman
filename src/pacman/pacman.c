@@ -55,19 +55,23 @@
  * (app or system) recognition should be
  * implemented */
 
+
+
+#ifdef __linux__
+
 #ifdef __ANDROID__
 
 uid_t _getuid() {
 	return 0;
 }
 
-#endif
-
-#ifdef __linux__
+#else
 
 uid_t _getuid() {
 	return getuid();
 }
+
+#endif
 
 #endif
 

@@ -147,6 +147,125 @@ static int perform_extraction(
 	return 0;
 }
 
+#else
+
+static int perform_extraction(
+					alpm_handle_t *handle,
+					struct archive *archive,
+					struct archive_entry *entry,
+					const char *filename)
+{
+	int ret;
+	struct archive *archive_writer;
+	const int archive_flags = ARCHIVE_EXTRACT_OWNER |
+	                          ARCHIVE_EXTRACT_PERM |
+	                          ARCHIVE_EXTRACT_TIME |
+	                          ARCHIVE_EXTRACT_UNLINK |
+	                          ARCHIVE_EXTRACT_XATTR |
+	                          ARCHIVE_EXTRACT_SECURE_SYMLINKS;
+
+	archive_entry_set_pathname(entry, filename);
+
+	archive_writer = archive_write_disk_new();
+	if (archive_writer == NULL) {
+		_alpm_log(
+			handle,
+			ALPM_LOG_ERROR,
+			_("cannot allocate disk archive object"));
+		alpm_logaction(
+			handle,
+			ALPM_CALLER_PREFIX,
+			"error: cannot allocate disk archive object");
+		return 1;
+	}
+
+	archive_write_disk_set_options(
+		archive_writer,
+		archive_flags);
+
+	ret = archive_read_extract2(
+				archive,
+				entry,
+				archive_writer);
+
+	archive_write_free(archive_writer);
+
+	if(ret == ARCHIVE_WARN && archive_errno(archive) != ENOSPC) {
+		/* operation succeeded but a "non-critical" error was encountered */
+		_alpm_log(
+			handle,
+			ALPM_LOG_WARNING,
+			_("warning given when extracting %s (%s)\n"),
+			filename,
+			archive_error_string(archive));
+	} else if(ret != ARCHIVE_OK) {
+		_alpm_log(
+			handle,
+			ALPM_LOG_ERROR,
+			_("could not extract %s (%s)\n"),
+			filename,
+			archive_error_string(archive));
+		alpm_logaction(
+			handle,
+			ALPM_CALLER_PREFIX,
+			"error: could not extract %s (%s)\n",
+			filename,
+			archive_error_string(archive));
+		return 1;
+	}
+	return 0;
+}
+
+#endif
+
+static int extract_db_file(
+		alpm_handle_t *handle,
+		struct archive *archive,
+		struct archive_entry *entry,
+		alpm_pkg_t *newpkg,
+		const char *entryname)
+{
+	char filename[PATH_MAX]; /* the actual file we're extracting */
+	const char *dbfile = NULL;
+	if(strcmp(entryname, ".INSTALL") == 0) {
+		dbfile = "install";
+	} else if(strcmp(entryname, ".CHANGELOG") == 0) {
+		dbfile = "changelog";
+	} else if(strcmp(entryname, ".MTREE") == 0) {
+		dbfile = "mtree";
+	} else if(*entryname == '.') {
+		/* reserve all files starting with '.' for future possibilities */
+		_alpm_log(
+			handle,
+			ALPM_LOG_DEBUG,
+			"skipping extraction of '%s'\n",
+			entryname);
+		archive_read_data_skip(
+			archive);
+		return 0;
+	}
+	archive_entry_set_perm(
+		entry,
+		0644);
+	snprintf(
+		filename,
+		PATH_MAX,
+		"%s%s-%s/%s",
+		_alpm_db_path(
+			handle->db_local),
+		newpkg->name,
+		newpkg->version,
+		dbfile);
+	return perform_extraction(
+				handle,
+				archive,
+				entry,
+				filename);
+}
+
+
+#ifdef __ANDROID__
+
 static int extract_single_file(
 					alpm_handle_t *handle,
 					struct archive *archive,
@@ -416,74 +535,8 @@ static int extract_single_file(
 	return errors;
 }
 
+
 #else
-
-static int perform_extraction(
-					alpm_handle_t *handle,
-					struct archive *archive,
-					struct archive_entry *entry,
-					const char *filename)
-{
-	int ret;
-	struct archive *archive_writer;
-	const int archive_flags = ARCHIVE_EXTRACT_OWNER |
-	                          ARCHIVE_EXTRACT_PERM |
-	                          ARCHIVE_EXTRACT_TIME |
-	                          ARCHIVE_EXTRACT_UNLINK |
-	                          ARCHIVE_EXTRACT_XATTR |
-	                          ARCHIVE_EXTRACT_SECURE_SYMLINKS;
-
-	archive_entry_set_pathname(entry, filename);
-
-	archive_writer = archive_write_disk_new();
-	if (archive_writer == NULL) {
-		_alpm_log(
-			handle,
-			ALPM_LOG_ERROR,
-			_("cannot allocate disk archive object"));
-		alpm_logaction(
-			handle,
-			ALPM_CALLER_PREFIX,
-			"error: cannot allocate disk archive object");
-		return 1;
-	}
-
-	archive_write_disk_set_options(
-		archive_writer,
-		archive_flags);
-
-	ret = archive_read_extract2(
-				archive,
-				entry,
-				archive_writer);
-
-	archive_write_free(archive_writer);
-
-	if(ret == ARCHIVE_WARN && archive_errno(archive) != ENOSPC) {
-		/* operation succeeded but a "non-critical" error was encountered */
-		_alpm_log(
-			handle,
-			ALPM_LOG_WARNING,
-			_("warning given when extracting %s (%s)\n"),
-			filename,
-			archive_error_string(archive));
-	} else if(ret != ARCHIVE_OK) {
-		_alpm_log(
-			handle,
-			ALPM_LOG_ERROR,
-			_("could not extract %s (%s)\n"),
-			filename,
-			archive_error_string(archive));
-		alpm_logaction(
-			handle,
-			ALPM_CALLER_PREFIX,
-			"error: could not extract %s (%s)\n",
-			filename,
-			archive_error_string(archive));
-		return 1;
-	}
-	return 0;
-}
 
 static int extract_single_file(
 					alpm_handle_t *handle,
@@ -777,51 +830,6 @@ static int extract_single_file(
 }
 
 #endif
-
-static int extract_db_file(
-		alpm_handle_t *handle,
-		struct archive *archive,
-		struct archive_entry *entry,
-		alpm_pkg_t *newpkg,
-		const char *entryname)
-{
-	char filename[PATH_MAX]; /* the actual file we're extracting */
-	const char *dbfile = NULL;
-	if(strcmp(entryname, ".INSTALL") == 0) {
-		dbfile = "install";
-	} else if(strcmp(entryname, ".CHANGELOG") == 0) {
-		dbfile = "changelog";
-	} else if(strcmp(entryname, ".MTREE") == 0) {
-		dbfile = "mtree";
-	} else if(*entryname == '.') {
-		/* reserve all files starting with '.' for future possibilities */
-		_alpm_log(
-			handle,
-			ALPM_LOG_DEBUG,
-			"skipping extraction of '%s'\n",
-			entryname);
-		archive_read_data_skip(
-			archive);
-		return 0;
-	}
-	archive_entry_set_perm(
-		entry,
-		0644);
-	snprintf(
-		filename,
-		PATH_MAX,
-		"%s%s-%s/%s",
-		_alpm_db_path(
-			handle->db_local),
-		newpkg->name,
-		newpkg->version,
-		dbfile);
-	return perform_extraction(
-				handle,
-				archive,
-				entry,
-				filename);
-}
 
 int SYMEXPORT alpm_add_pkg(
 					 alpm_handle_t *handle,

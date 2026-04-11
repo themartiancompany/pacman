@@ -48,51 +48,6 @@
 #include "remove.h"
 #include "handle.h"
 
-static int extract_db_file(
-		alpm_handle_t *handle,
-		struct archive *archive,
-		struct archive_entry *entry,
-		alpm_pkg_t *newpkg,
-		const char *entryname)
-{
-	char filename[PATH_MAX]; /* the actual file we're extracting */
-	const char *dbfile = NULL;
-	if(strcmp(entryname, ".INSTALL") == 0) {
-		dbfile = "install";
-	} else if(strcmp(entryname, ".CHANGELOG") == 0) {
-		dbfile = "changelog";
-	} else if(strcmp(entryname, ".MTREE") == 0) {
-		dbfile = "mtree";
-	} else if(*entryname == '.') {
-		/* reserve all files starting with '.' for future possibilities */
-		_alpm_log(
-			handle,
-			ALPM_LOG_DEBUG,
-			"skipping extraction of '%s'\n",
-			entryname);
-		archive_read_data_skip(
-			archive);
-		return 0;
-	}
-	archive_entry_set_perm(
-		entry,
-		0644);
-	snprintf(
-		filename,
-		PATH_MAX,
-		"%s%s-%s/%s",
-		_alpm_db_path(
-			handle->db_local),
-		newpkg->name,
-		newpkg->version,
-		dbfile);
-	return perform_extraction(
-				handle,
-				archive,
-				entry,
-				filename);
-}
-
 static int try_rename(
 		alpm_handle_t *handle,
 		const char *src,
@@ -822,6 +777,51 @@ static int extract_single_file(
 }
 
 #endif
+
+static int extract_db_file(
+		alpm_handle_t *handle,
+		struct archive *archive,
+		struct archive_entry *entry,
+		alpm_pkg_t *newpkg,
+		const char *entryname)
+{
+	char filename[PATH_MAX]; /* the actual file we're extracting */
+	const char *dbfile = NULL;
+	if(strcmp(entryname, ".INSTALL") == 0) {
+		dbfile = "install";
+	} else if(strcmp(entryname, ".CHANGELOG") == 0) {
+		dbfile = "changelog";
+	} else if(strcmp(entryname, ".MTREE") == 0) {
+		dbfile = "mtree";
+	} else if(*entryname == '.') {
+		/* reserve all files starting with '.' for future possibilities */
+		_alpm_log(
+			handle,
+			ALPM_LOG_DEBUG,
+			"skipping extraction of '%s'\n",
+			entryname);
+		archive_read_data_skip(
+			archive);
+		return 0;
+	}
+	archive_entry_set_perm(
+		entry,
+		0644);
+	snprintf(
+		filename,
+		PATH_MAX,
+		"%s%s-%s/%s",
+		_alpm_db_path(
+			handle->db_local),
+		newpkg->name,
+		newpkg->version,
+		dbfile);
+	return perform_extraction(
+				handle,
+				archive,
+				entry,
+				filename);
+}
 
 int SYMEXPORT alpm_add_pkg(
 					 alpm_handle_t *handle,

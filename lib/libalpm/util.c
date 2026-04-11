@@ -96,16 +96,13 @@ char *strsep(char **str, const char *delims)
 	*str = NULL;
 	return token;
 }
+
 #endif
 
 /* android */
 #ifdef __ANDROID__
 
 #include <sys/syscall.h>
-
-int _chroot(alpm_handle_t *handle) {
-	return 0;
-}
 
 const int _LINE_MAX = PATH_MAX;
 
@@ -119,14 +116,6 @@ int _faccessat(int dirfd, const char* path, int mode, int flag) {
 
 #else
 
-void _chroot(alpm_handle_t *handle) {
-	if(strcmp(handle->root, "/") != 0 && chroot(handle->root) != 0) {
-		fprintf(stderr,
-			_("could not change the root directory (%s)\n"),
-			strerror(errno));
-		exit(1);
-}
-
 const int _LINE_MAX = LINE_MAX;
 
 const char* _tmpdir_get() {
@@ -138,7 +127,6 @@ int _faccessat(int dirfd, const char* path, int mode, int flag) {
 }
 
 #endif
-
 
 int _alpm_makepath(const char *path)
 {
@@ -642,6 +630,25 @@ void _alpm_reset_signals(void)
 	}
 }
 
+/* android */
+#ifdef __ANDROID__
+
+int _chroot(alpm_handle_t *handle) {
+	return 0;
+}
+
+#else
+
+int _chroot(alpm_handle_t *handle) {
+	if(strcmp(handle->root, "/") != 0 && chroot(handle->root) != 0) {
+		fprintf(stderr,
+			_("could not change the root directory (%s)\n"),
+			strerror(errno));
+		return 1;
+}
+
+#endif
+
 /** Execute a command with arguments in a chroot.
  * @param handle the context handle
  * @param cmd command to execute
@@ -657,6 +664,7 @@ int _alpm_run_chroot(alpm_handle_t *handle, const char *cmd, char *const argv[],
 	int child2parent_pipefd[2], parent2child_pipefd[2];
 	int cwdfd;
 	int retval = 0;
+	int chroot_retval = 0;
 
 #define HEAD 1
 #define TAIL 0
@@ -719,7 +727,10 @@ int _alpm_run_chroot(alpm_handle_t *handle, const char *cmd, char *const argv[],
 		/* use fprintf instead of _alpm_log to send output through the parent */
 		/* don't chroot() to "/": this allows running with less caps when the
 		 * caller puts us in the right root */
-		_chroot(handle);
+		chroot_retval = _chroot(handle);
+		if ( chroot_retval == 1 ) {
+			exit(1);
+		}
 		if(chdir("/") != 0) {
 			fprintf(stderr, _("could not change directory to %s (%s)\n"),
 					"/", strerror(errno));

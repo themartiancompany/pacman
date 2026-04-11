@@ -61,7 +61,7 @@ uid_t _getuid() {
 	return 0;
 }
 
-#ifdef
+#endif
 
 #ifdef __linux__
 

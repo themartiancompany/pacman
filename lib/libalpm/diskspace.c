@@ -127,7 +127,7 @@ static int check_mountpoint(
 	return 0;
 }
 
-#ifdef
+#endif
 
 static int mount_point_cmp(const void *p1, const void *p2)
 {

@@ -19,29 +19,25 @@ _global_variables
 
 _target_file="${1}"
 _internal_path="${2}"
-if [[ -v "DESTDIR" ]]; then
+if (( 2 < "$#" )); then
+  _destdir="${3}"
+else
   _destdir="${DESTDIR}"
-  if (( 2 < "$#" )); then
-    _destdir="${3}"
+  if [[ "${_os}" == "Android" ]]; then
+    _destdir="@ANDROID_ROOT@"
   fi
-elif [[ ! -v "DESTDIR" || \
-        "${DESTDIR}" == "" ]]; then
-  _destdir=""
-  if (( 2 < "$#" )); then
-    _destdir="${3}"
-  fi
-fi
-if [[ "${_os}" == "Android" ]]; then
-  _destdir="@ANDROID_ROOT@"
 fi
 _target_link="${_destdir}${_internal_path}"
 mkdir \
   -vp \
   "$(dirname \
-       "${_target_link}")"
+       "${_target_link}")" || \
+  true
 rm \
+  -v \
   -f \
-  "${_target_link}"
+  "${_target_link}" || \
+  true
 ln \
   -vs \
   "${_target_file}" \

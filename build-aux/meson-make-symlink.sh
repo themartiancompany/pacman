@@ -21,7 +21,11 @@ _target_file="${1}"
 _internal_path="${2}"
 if [[ -v "DESTDIR" ]]; then
   _destdir="${DESTDIR}"
-elif [[ ! -v "DESTDIR" ]]; then
+  if (( 2 < "$#" )); then
+    _destdir="${3}"
+  fi
+elif [[ ! -v "DESTDIR" || \
+        "${DESTDIR}" == "" ]]; then
   _destdir=""
   if (( 2 < "$#" )); then
     _destdir="${3}"
@@ -41,4 +45,5 @@ rm \
 ln \
   -vs \
   "${_target_file}" \
-  "${_target_link}"
+  "${_target_link}" || \
+  true

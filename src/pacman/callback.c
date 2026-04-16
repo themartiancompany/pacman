@@ -1,6 +1,9 @@
 /*
  *  callback.c
  *
+ *
+ *  Copyright (c) 2026 Pellegrino Prevete <pellegrinoprevete@gmail.com>
+ *  Copyright (c) 2023 Christoph Reiter <reiter.christoph@gmail.com>
  *  Copyright (c) 2006-2025 Pacman Development Team <pacman-dev@lists.archlinux.org>
  *  Copyright (c) 2002-2006 by Judd Vinet <jvinet@zeroflux.org>
  *
@@ -38,6 +41,16 @@
 #include "callback.h"
 #include "util.h"
 #include "conf.h"
+
+#ifdef _WIN32 || _WIN64 || __CYGWIN__ || __MSYS__
+
+static int _proglen = 9;
+
+#else
+
+static int _proglen = 8;
+
+#endif
 
 /* download progress bar */
 static int total_enabled = 0;
@@ -153,7 +166,7 @@ static int64_t get_update_timediff(int first_call)
 static void fill_progress(const int percent, const int proglen)
 {
 	/* 8 = 1 space + 1 [ + 1 ] + 5 for percent */
-	const int hashlen = proglen > 8 ? proglen - 8 : 0;
+	const int hashlen = proglen > _proglen ? proglen - _proglen : 0;
 	const int hash = percent * hashlen / 100;
 	int i;
 

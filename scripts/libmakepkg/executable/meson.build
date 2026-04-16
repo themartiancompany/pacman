@@ -11,24 +11,22 @@ sources = [
   'checksum.sh.in',
   'distcc.sh.in',
   'debugedit.sh.in',
-  'fakeroot.sh.in',
   'gpg.sh.in',
   'gzip.sh.in',
   'pacman.sh.in',
   'sccache.sh.in',
   'strip.sh.in',
-  'sudo.sh.in',
   'vcs.sh.in',
 ]
 
 # enable after '_system'
 # variable value is determined
-# if _system != "android"
-#   sources += [
-#     'fakeroot.sh.in',
-#     'sudo.sh.in',
-#   ]
-# endif
+if _system != "android" and _system != "windows"
+  sources += [
+    'fakeroot.sh.in',
+    'sudo.sh.in',
+  ]
+endif
 
 foreach src : sources
   output_dir = join_paths(

@@ -646,6 +646,8 @@ static int extract_single_file(
 				entrymode & mask);
 		}
 
+#ifndef __MSYS__
+
 #if 0
 		/* Disable this warning until our user management in packages has improved.
 		   Currently many packages have to create users in post_install and chown the
@@ -673,6 +675,8 @@ static int extract_single_file(
 				entryuid,
 				entrygid);
 		}
+#endif
+
 #endif
 
 		_alpm_log(

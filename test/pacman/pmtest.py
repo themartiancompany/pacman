@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pellegrino Prevete <pellegrinoprevete@gmail.com>
+#  Copyright (c) 2023 Christoph Reiter <reiter.christoph@gmail.com>
 #  Copyright (c) 2006 by Aurelien Foret <orelien@chez.com>
 #  Copyright (c) 2006-2025 Pacman Development Team <pacman-dev@lists.archlinux.org>
 #
@@ -22,6 +24,7 @@ import stat
 import subprocess
 import threading
 import time
+import platform
 
 import pmrule
 import pmserve
@@ -299,8 +302,24 @@ class pmtest(object):
         # Change to the tmp dir before running pacman, so that local package
         # archives are made available more easily.
         time_start = time.time()
-        self.retcode = subprocess.call(cmd, stdout=output, stderr=output,
-                cwd=os.path.join(self.root, util.TMPDIR), env={'LC_ALL': 'C', **self.env})
+        _system = platform.system()
+        if ( _system != "Windows" )
+          self.retcode = subprocess.call(
+            cmd,
+            cwd=os.path.join(
+              self.root,
+              util.TMPDIR),
+            env={
+              'LC_ALL':
+                'C',
+              'PATH':
+                os.environ[
+                  'PATH'] },
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL)
+        else
+          self.retcode = subprocess.call(cmd, stdout=output, stderr=output,
+                  cwd=os.path.join(self.root, util.TMPDIR), env={'LC_ALL': 'C', **self.env})
         time_end = time.time()
         vprint("\ttime elapsed: %.2fs" % (time_end - time_start))
 

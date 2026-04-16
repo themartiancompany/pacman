@@ -45,6 +45,11 @@
 # - tput (ncurses),
 # - xz
 
+# detect os
+_os="$(
+  uname \
+    -o)"
+
 # gettext initialization
 export \
   TEXTDOMAIN='pacman-scripts' \
@@ -85,7 +90,10 @@ FORCE=0
 GENINTEG=0
 HOLDVER=0
 IGNOREARCH=0
-INFAKEROOT=0
+if [[ "${_os}" != "Android" && \
+      "${_os}" != "Msys" ]]; then
+  INFAKEROOT=0
+fi
 INSTALL=0
 LOGGING=0
 NEEDED=0
@@ -128,8 +136,20 @@ done
 ##
 trap_exit() {
   local \
-    signal=${1}; shift
-  if (( ! INFAKEROOT )); then
+    signal=${1} \
+    _os
+  shift
+  _os="$(
+   uname \
+     -o)"
+  if [[ "${_os}" != "Android" && \
+        "${_os}" != "Msys" ]]; then 
+    if (( ! INFAKEROOT )); then
+      echo
+      error \
+        "$@"
+    fi
+  else
     echo
     error \
       "$@"
@@ -157,103 +177,176 @@ trap_exit() {
 # Clean up function. Called automatically when the script exits.
 ##
 clean_up() {
-	local EXIT_CODE=$?
-
-	if (( INFAKEROOT )); then
-		# Don't clean up when leaving fakeroot, we're not done yet.
-		return 0
-	fi
-
-	if [[ -p $logpipe ]]; then
-		rm "$logpipe"
-	fi
-
-	if (( (EXIT_CODE == E_OK || EXIT_CODE == E_INSTALL_FAILED) && BUILDPKG && CLEANUP )); then
-		local pkg file
-
-		# If it's a clean exit and -c/--clean has been passed...
-		msg "$(gettext "Cleaning up...")"
-		rm -rf "$pkgdirbase" "$srcdir"
-		if [[ -n $pkgbase ]]; then
-			local fullver=$(get_full_version)
-			# Can't do this unless the BUILDSCRIPT has been sourced.
-			if (( PKGVERFUNC )); then
-				rm -f "${pkgbase}-${fullver}-${CARCH}-pkgver.log"*
-			fi
-			if (( VERIFYFUNC )); then
-				rm -f "${pkgbase}-${fullver}-${CARCH}-verify.log"*
-			fi
-			if (( PREPAREFUNC )); then
-				rm -f "${pkgbase}-${fullver}-${CARCH}-prepare.log"*
-			fi
-			if (( BUILDFUNC )); then
-				rm -f "${pkgbase}-${fullver}-${CARCH}-build.log"*
-			fi
-			if (( CHECKFUNC )); then
-				rm -f "${pkgbase}-${fullver}-${CARCH}-check.log"*
-			fi
-			if (( PKGFUNC )); then
-				rm -f "${pkgbase}-${fullver}-${CARCH}-package.log"*
-			elif (( SPLITPKG )); then
-				for pkg in ${pkgname[@]}; do
-					rm -f "${pkgbase}-${fullver}-${CARCH}-package_${pkg}.log"*
-				done
-			fi
-
-			# clean up dangling symlinks to packages
-			for pkg in ${pkgname[@]}; do
-				for file in ${pkg}-*-*-*{${PKGEXT},${SRCEXT}}; do
-					if [[ -h $file && ! -e $file ]]; then
-						rm -f "$file"
-					fi
-				done
-			done
-		fi
-	fi
-
-	if ! remove_deps && (( EXIT_CODE == E_OK )); then
-	    exit $E_REMOVE_DEPS_FAILED
-	else
-	    exit $EXIT_CODE
-	fi
+  local \
+    EXIT_CODE=$? \
+    _os \
+    _pkg \
+    _file \
+    _fullver
+  _os="$(
+    uname \
+      -o)"
+  if [[ "${_os}" != "Android" && \
+        "${_os}" != "Msys" ]]; then 
+    if (( INFAKEROOT )); then
+      # Don't clean up when leaving
+      # fakeroot, we're not done yet.
+      return \
+        0
+    fi
+  fi
+  if [[ -p $logpipe ]]; then
+    rm "$logpipe"
+  fi
+  if (( ( EXIT_CODE == E_OK || \
+          EXIT_CODE == E_INSTALL_FAILED ) && \
+         BUILDPKG && \
+         CLEANUP )); then
+    # If it's a clean exit and -c/--clean has been passed...
+    msg \
+      "$(gettext \
+           "Cleaning up...")"
+    rm \
+      -rf \
+      "$pkgdirbase" \
+      "$srcdir"
+    if [[ -n $pkgbase ]]; then
+      _fullver=$(
+        get_full_version)
+      # Can't do this unless the BUILDSCRIPT has been sourced.
+      if (( PKGVERFUNC )); then
+        rm \
+          -f \
+          "${pkgbase}-${_fullver}-${CARCH}-pkgver.log"*
+      fi
+      if (( VERIFYFUNC )); then
+        rm \
+          -f \
+	  "${pkgbase}-${_fullver}-${CARCH}-verify.log"*
+      fi
+      if (( PREPAREFUNC )); then
+      	rm \
+          -f \
+          "${pkgbase}-${_fullver}-${CARCH}-prepare.log"*
+      fi
+      if (( BUILDFUNC )); then
+      	rm \
+          -f \
+	  "${pkgbase}-${_fullver}-${CARCH}-build.log"*
+      fi
+      if (( CHECKFUNC )); then
+      	rm \
+          -f \
+	  "${pkgbase}-${_fullver}-${CARCH}-check.log"*
+      fi
+      if (( PKGFUNC )); then
+        rm \
+          -f \
+	  "${pkgbase}-${_fullver}-${CARCH}-package.log"*
+      elif (( SPLITPKG )); then
+      	for _pkg in ${pkgname[@]}; do
+          rm \
+            -f \
+            "${pkgbase}-${_fullver}-${CARCH}-package_${_pkg}.log"*
+      	done
+      fi
+      # clean up dangling symlinks to packages
+      for _pkg in ${pkgname[@]}; do
+      	for _file in ${pkg}-*-*-*{${PKGEXT},${SRCEXT}}; do
+          if [[ -h "${_file}" && ! -e "${_file}" ]]; then
+            rm \
+              -f \
+              "${file}"
+          fi
+      	done
+      done
+    fi
+  fi
+  if ! remove_deps && \
+     (( EXIT_CODE == E_OK )); then
+    exit \
+      $E_REMOVE_DEPS_FAILED
+  else
+      exit $EXIT_CODE
+  fi
 }
 
 enter_fakeroot() {
-	msg "$(gettext "Entering %s environment...")" "fakeroot"
-	fakeroot -- bash -$- "${BASH_SOURCE[0]}" -F "${ARGLIST[@]}" || exit $?
+  msg \
+    "$(gettext \
+         "Entering %s environment...")" \
+    "fakeroot"
+  fakeroot -- \
+    bash -$- \
+      "${BASH_SOURCE[0]}" \
+      -F \
+        "${ARGLIST[@]}" || \
+    exit \
+      $?
 }
 
 # Automatically update pkgver variable if a pkgver() function is provided
 # Re-sources the PKGBUILD afterwards to allow for other variables that use $pkgver
 update_pkgver() {
-	msg "$(gettext "Starting %s()...")" "pkgver"
-	newpkgver=$(run_function_safe pkgver)
-	if (( $? != 0 )); then
-		error_function pkgver
-	fi
-	if ! check_pkgver "$newpkgver"; then
-		error "$(gettext "pkgver() generated an invalid version: %s")" "$newpkgver"
-		exit $E_PKGBUILD_ERROR
-	fi
-
-	if [[ -n $newpkgver && $newpkgver != "$pkgver" ]]; then
-		if [[ -w $BUILDFILE ]]; then
-			mapfile -t buildfile < "$BUILDFILE"
-			buildfile=("${buildfile[@]/#pkgver=*([^ ])/pkgver=$newpkgver}")
-			buildfile=("${buildfile[@]/#pkgrel=*([^ ])/pkgrel=1}")
-			if ! printf '%s\n' "${buildfile[@]}" > "$BUILDFILE"; then
-				error "$(gettext "Failed to update %s from %s to %s")" \
-						"pkgver" "$pkgver" "$newpkgver"
-				exit $E_PKGBUILD_ERROR
-			fi
-			source_safe "$BUILDFILE"
-			local fullver=$(get_full_version)
-			msg "$(gettext "Updated version: %s")" "$pkgbase $fullver"
-		else
-			warning "$(gettext "%s is not writeable -- pkgver will not be updated")" \
-					"$BUILDFILE"
-		fi
-	fi
+  local \
+    _fullver
+  msg \
+    "$(gettext \
+         "Starting %s()...")" \
+    "pkgver"
+  newpkgver=$(
+    run_function_safe pkgver)
+  if (( $? != 0 )); then
+    error_function pkgver
+  fi
+  if ! check_pkgver "$newpkgver"; then
+    error \
+      "$(gettext \
+           "pkgver() generated an invalid version: %s")" \
+      "$newpkgver"
+    exit \
+      $E_PKGBUILD_ERROR
+  fi
+  if [[ -n $newpkgver && $newpkgver != "$pkgver" ]]; then
+    if [[ -w $BUILDFILE ]]; then
+      mapfile \
+        -t \
+        "buildfile" < \
+        "$BUILDFILE"
+      buildfile=(
+        "${buildfile[@]/#pkgver=*([^ ])/pkgver=$newpkgver}"
+      )
+      buildfile=(
+        "${buildfile[@]/#pkgrel=*([^ ])/pkgrel=1}"
+      )
+      if ! printf \
+             '%s\n' \
+             "${buildfile[@]}" > \
+             "$BUILDFILE"; then
+        error \
+          "$(gettext \
+               "Failed to update %s from %s to %s")" \
+               "pkgver" \
+               "$pkgver" \
+               "$newpkgver"
+        exit \
+          $E_PKGBUILD_ERROR
+      fi
+      source_safe \
+        "$BUILDFILE"
+      _fullver=$(
+        get_full_version)
+      msg \
+        "$(gettext \
+             "Updated version: %s")" \
+        "$pkgbase $fullver"
+    else
+      warning \
+        "$(gettext \
+             "%s is not writeable -- pkgver will not be updated")" \
+        "$BUILDFILE"
+    fi
+  fi
 }
 
 # Print 'source not found' error message and exit makepkg
@@ -308,7 +401,7 @@ run_pacman() {
     elif type \
            -p \
            "sudo" \
-	   >"/dev/null"; then
+           >"/dev/null"; then
       _cmd=(
         sudo
           -k
@@ -341,321 +434,550 @@ run_pacman() {
 }
 
 check_deps() {
-	(( $# > 0 )) || return 0
-
-	local ret=0
-	local pmout
-	pmout=$(run_pacman -T "$@")
-	ret=$?
-
-	if (( ret == 127 )); then #unresolved deps
-		printf "%s\n" "$pmout"
-	elif (( ret )); then
-		error "$(gettext "'%s' returned a fatal error (%i): %s")" "$PACMAN" "$ret" "$pmout"
-		return "$ret"
-	fi
+  local \
+    _ret \
+    _pmout
+  (( $# > 0 )) || \
+    return \
+      0
+  _ret=0
+  _pmout=$(
+    run_pacman \
+      -T \
+      "$@")
+  _ret=$?
+  if (( _ret == 127 )); then #unresolved deps
+    printf \
+      "%s\n" \
+      "${_pmout}"
+  elif (( _ret )); then
+    error \
+      "$(gettext \
+           "'%s' returned a fatal error (%i): %s")" \
+      "$PACMAN" \
+      "${_ret}" \
+      "${_pmout}"
+    return \
+      "${_ret}"
+  fi
 }
 
 handle_deps() {
-	local R_DEPS_SATISFIED=0
-	local R_DEPS_MISSING=1
-
-	(( $# == 0 )) && return $R_DEPS_SATISFIED
-
-	local deplist=("$@")
-
-	if (( ! DEP_BIN )); then
-		return $R_DEPS_MISSING
-	fi
-
-	if (( DEP_BIN )); then
-		# install missing deps from binary packages (using pacman -S)
-		msg "$(gettext "Installing missing dependencies...")"
-
-		if ! run_pacman -S --asdeps "${deplist[@]}"; then
-			error "$(gettext "'%s' failed to install missing dependencies.")" "$PACMAN"
-			return $R_DEPS_MISSING
-		fi
-	fi
-
-	# we might need the new system environment
-	# save our shell options and turn off extglob
-	local shellopts=$(shopt -p extglob)
-	shopt -u extglob
-	source /etc/profile &>/dev/null
-	eval "$shellopts"
-
-	# umask might have been changed in /etc/profile
-	# ensure that sane default is set again
-	umask 0022
-
-	return $R_DEPS_SATISFIED
+  local \
+    R_DEPS_SATISFIED=0 \
+    R_DEPS_MISSING=1 \
+    deplist=() \
+    shellopts
+  (( $# == 0 )) && \
+    return \
+      $R_DEPS_SATISFIED
+  deplist=(
+    "$@"
+  )
+  if (( ! DEP_BIN )); then
+    return \
+      $R_DEPS_MISSING
+  fi
+  if (( DEP_BIN )); then
+    # install missing deps from binary packages (using pacman -S)
+    msg \
+      "$(gettext \
+           "Installing missing dependencies...")"
+    if ! run_pacman -S --asdeps "${deplist[@]}"; then
+    error \
+      "$(gettext \
+           "'%s' failed to install missing dependencies.")" \
+      "$PACMAN"
+    return \
+      $R_DEPS_MISSING
+    fi
+  fi
+  # we might need the new system environment
+  # save our shell options and turn off extglob
+  shellopts=$(
+    shopt \
+      -p \
+      extglob)
+  shopt \
+    -u \
+    extglob
+  source \
+    "/etc/profile" \
+    &>"/dev/null"
+  eval \
+    "${shellopts}"
+  # umask might have been changed in /etc/profile
+  # ensure that sane default is set again
+  umask \
+    0022
+  return \
+    $R_DEPS_SATISFIED
 }
 
 resolve_deps() {
-	local R_DEPS_SATISFIED=0
-	local R_DEPS_MISSING=1
-
-	# deplist cannot be declared like this: local deplist=$(foo)
-	# Otherwise, the return value will depend on the assignment.
-	local deplist
-	deplist=($(check_deps "$@")) || exit $E_INSTALL_DEPS_FAILED
-	[[ -z $deplist ]] && return $R_DEPS_SATISFIED
-
-	if handle_deps "${deplist[@]}"; then
-		# check deps again to make sure they were resolved
-		deplist=$(check_deps "$@")
-		[[ -z $deplist ]] && return $R_DEPS_SATISFIED
-	fi
-
-	msg "$(gettext "Missing dependencies:")"
-	local dep
-	for dep in ${deplist[@]}; do
-		msg2 "$dep"
-	done
-
-	return $R_DEPS_MISSING
+  local \
+    R_DEPS_SATISFIED=0 \
+    R_DEPS_MISSING=1 \
+    deplist \
+    _dep
+  # deplist cannot be declared like this: local deplist=$(foo)
+  # Otherwise, the return value will depend on the assignment.
+  deplist=( $(
+    check_deps \
+      "$@")
+  ) || \
+  exit \
+    $E_INSTALL_DEPS_FAILED
+  [[ -z $deplist ]] && \
+    return \
+      $R_DEPS_SATISFIED
+  
+  if handle_deps "${deplist[@]}"; then
+    # check deps again to make sure they were resolved
+    deplist=$(
+      check_deps \
+        "$@")
+    [[ -z $deplist ]] && \
+      return \
+        $R_DEPS_SATISFIED
+  fi
+  msg \
+    "$(gettext \
+         "Missing dependencies:")"
+  for _dep in ${deplist[@]}; do
+    msg2 \
+      "${_dep}"
+  done
+  return \
+    $R_DEPS_MISSING
 }
 
 remove_deps() {
-	(( ! RMDEPS )) && return 0
-
-	# check for packages removed during dependency install (e.g. due to conflicts)
-	# removing all installed packages is risky in this case
-	if [[ -n $(grep -xvFf <(printf '%s\n' "${current_pkglist[@]}") \
-			<(printf '%s\n' "${original_pkglist[@]}")) ]]; then
-		warning "$(gettext "Failed to remove installed dependencies.")"
-		return $E_REMOVE_DEPS_FAILED
-	fi
-
-	local deplist
-	deplist=($(grep -xvFf <(printf "%s\n" "${original_pkglist[@]}") \
-			<(printf "%s\n" "${current_pkglist[@]}")))
-	if [[ -z $deplist ]]; then
-		return 0
-	fi
-
-	msg "Removing installed dependencies..."
-	# exit cleanly on failure to remove deps as package has been built successfully
-	if ! run_pacman -Rnu ${deplist[@]}; then
-		warning "$(gettext "Failed to remove installed dependencies.")"
-		return $E_REMOVE_DEPS_FAILED
-	fi
+  local \
+    deplist
+  (( ! RMDEPS )) && \
+    return 0
+  
+  # check for packages removed during dependency install (e.g. due to conflicts)
+  # removing all installed packages is risky in this case
+  if [[ -n $(grep \
+               -xvFf <(printf \
+                         '%s\n' \
+                         "${current_pkglist[@]}") \
+  		     <(printf \
+                         '%s\n' \
+                         "${original_pkglist[@]}")) ]]; then
+    warning \
+      "$(gettext \
+           "Failed to remove installed dependencies.")"
+    return \
+      $E_REMOVE_DEPS_FAILED
+  fi
+  deplist=(
+    $(grep \
+        -xvFf <(printf \
+                  "%s\n" \
+                  "${original_pkglist[@]}") \
+              <(printf \
+                  "%s\n" \
+                  "${current_pkglist[@]}"))
+  )
+  if [[ -z $deplist ]]; then
+    return \
+      0
+  fi
+  msg \
+    l"Removing installed dependencies..."
+  # exit cleanly on failure to remove deps as package has been built successfully
+  if ! run_pacman -Rnu ${deplist[@]}; then
+    warning \
+      "$(gettext \
+           "Failed to remove installed dependencies.")"
+    return \
+      $E_REMOVE_DEPS_FAILED
+  fi
 }
 
 error_function() {
-	# first exit all subshells, then print the error
-	if (( ! BASH_SUBSHELL )); then
-		error "$(gettext "A failure occurred in %s().")" "$1"
-		plainerr "$(gettext "Aborting...")"
-	fi
-	exit $E_USER_FUNCTION_FAILED
+  # first exit all subshells, then print the error
+  if (( ! BASH_SUBSHELL )); then
+    error \
+      "$(gettext \
+           "A failure occurred in %s().")" \
+      "$1"
+    plainerr \
+      "$(gettext \
+           "Aborting...")"
+  fi
+  exit \
+    $E_USER_FUNCTION_FAILED
 }
 
 merge_arch_attrs() {
-	local attr supported_attrs=(
-		provides conflicts depends replaces optdepends
-		makedepends checkdepends)
-
-	for attr in "${supported_attrs[@]}"; do
-		eval "$attr+=(\"\${${attr}_$CARCH[@]}\")"
-	done
-
-	# ensure that calling this function is idempotent.
-	unset -v "${supported_attrs[@]/%/_$CARCH}"
+  local \
+    attr \
+    supported_attrs=()
+  supported_attrs+=(
+    "provides"
+    "conflicts"
+    "depends"
+    "replaces"
+    "optdepends"
+    "makedepends"
+    "checkdepends"
+  )
+  for attr in "${supported_attrs[@]}"; do
+    eval \
+      "$attr+=(\"\${${attr}_$CARCH[@]}\")"
+  done
+  # ensure that calling this function is idempotent.
+  unset \
+    -v \
+    "${supported_attrs[@]/%/_$CARCH}"
 }
 
 source_buildfile() {
-	source_safe "$@"
+  source_safe \
+    "$@"
 }
 
 run_function_safe() {
-	local restoretrap restoreshopt
-
-	# we don't set any special shopts of our own, but we don't want the user to
-	# muck with our environment.
-	restoreshopt=$(shopt -p)
-
-	# localize 'set' shell options to this function - this does not work for shopt
-	local -
-	shopt -o -s errexit errtrace
-
-	restoretrap=$(trap -p ERR)
-	trap "error_function '$1'" ERR
-
-	run_function "$1" "$2"
-
-	trap - ERR
-	eval "$restoretrap"
-	eval "$restoreshopt"
+  local \
+    restoretrap \
+    restoreshopt
+  # we don't set any special shopts of our own, but we don't want the user to
+  # muck with our environment.
+  restoreshopt=$(
+    shopt \
+      -p)
+  
+  # localize 'set' shell options to this function - this does not work for shopt
+  local -
+  shopt \
+    -o \
+    -s \
+    errexit \
+    errtrace
+  
+  restoretrap=$(
+    trap \
+      -p \
+      ERR)
+  trap \
+    "error_function '$1'" \
+    ERR
+  run_function \
+    "$1" \
+    "$2"
+  trap - \
+    ERR
+  eval \
+    "$restoretrap"
+  eval \
+    "$restoreshopt"
 }
 
 run_function() {
-	if [[ -z $1 ]]; then
-		return 1
-	fi
-	local pkgfunc="$1"
-	local workingdir="${2:-$srcdir}"
-
-	if (( ! BASH_SUBSHELL )); then
-		msg "$(gettext "Starting %s()...")" "$pkgfunc"
-	fi
-	cd_safe "$workingdir"
-
-	local ret=0
-	if (( LOGGING )); then
-		local fullver=$(get_full_version)
-		local BUILDLOG="$LOGDEST/${pkgbase}-${fullver}-${CARCH}-$pkgfunc.log"
-		if [[ -f $BUILDLOG ]]; then
-			local i=1
-			while true; do
-				if [[ -f $BUILDLOG.$i ]]; then
-					i=$(($i +1))
-				else
-					break
-				fi
-			done
-			mv "$BUILDLOG" "$BUILDLOG.$i"
-		fi
-
-		# ensure overridden package variables survive tee with split packages
-		logpipe=$(mktemp -u "$LOGDEST/logpipe.XXXXXXXX")
-		mkfifo "$logpipe"
-		tee "$BUILDLOG" < "$logpipe" &
-		local teepid=$!
-
-		$pkgfunc &>"$logpipe"
-
-		wait -f $teepid
-		rm "$logpipe"
-	else
-		"$pkgfunc"
-	fi
+  local \
+    pkgfunc \
+    workingdir \
+    ret \
+    fullver \
+    BUILDLOG \
+    _i \
+    teepid
+  if [[ -z $1 ]]; then
+    return \
+      1
+  fi
+  pkgfunc="$1"
+  workingdir="${2:-$srcdir}"
+  if (( ! BASH_SUBSHELL )); then
+    msg \
+      "$(gettext \
+           "Starting %s()...")" \
+      "$pkgfunc"
+  fi
+  cd_safe \
+    "$workingdir"
+  
+  ret=0
+  if (( LOGGING )); then
+    fullver=$(
+      get_full_version)
+    BUILDLOG="$LOGDEST/${pkgbase}-${fullver}-${CARCH}-$pkgfunc.log"
+    if [[ -f $BUILDLOG ]]; then
+      _i=1
+      while true; do
+        if [[ -f "$BUILDLOG.${_i}" ]]; then
+          _i=$((
+            ${_i} +1 ))
+        else
+        	break
+        fi
+      done
+      mv \
+        "$BUILDLOG" \
+        "$BUILDLOG.${_i}"
+    fi
+    # ensure overridden package variables survive tee with split packages
+    logpipe=$(
+      mktemp \
+        -u \
+        "$LOGDEST/logpipe.XXXXXXXX")
+    mkfifo \
+      "$logpipe"
+    tee \
+      "$BUILDLOG" < \
+      "$logpipe" &
+    teepid=$!
+    $pkgfunc \
+      &>"$logpipe"
+    wait \
+      -f \
+      $teepid
+    rm \
+      "$logpipe"
+  else
+    "$pkgfunc"
+  fi
 }
 
 run_verify() {
-	run_function_safe "verify" "$startdir"
+  run_function_safe \
+    "verify" \
+    "$startdir"
 }
 
 run_prepare() {
-	run_function_safe "prepare"
+  run_function_safe \
+    "prepare"
 }
 
 run_build() {
-	run_function_safe "build"
+  run_function_safe \
+    "build"
 }
 
 run_check() {
-	run_function_safe "check"
+  run_function_safe \
+    "check"
 }
 
 run_package() {
-	run_function_safe "package${1:+_$1}"
+  run_function_safe \
+    "package${1:+_$1}"
 }
 
 write_kv_pair() {
-	local key="$1"
-	shift
-
-	for val in "$@"; do
-		if [[ $val = *$'\n'* ]]; then
-			error "$(gettext "Invalid value for %s: %s")" "$key" "$val"
-			exit $E_PKGBUILD_ERROR
-		fi
-		printf "%s = %s\n" "$key" "$val"
-	done
+  local key="$1"
+  shift
+  
+  for val in "$@"; do
+    if [[ $val = *$'\n'* ]]; then
+      error \
+        "$(gettext \
+             "Invalid value for %s: %s")" \
+        "$key" \
+        "$val"
+      exit \
+        $E_PKGBUILD_ERROR
+    fi
+    printf \
+      "%s = %s\n" \
+      "$key" \
+      "$val"
+  done
 }
 
 write_pkginfo() {
-	local size=$(dirsize)
-
-	merge_arch_attrs
-	generate_autodeps
-
-	printf "# Generated by makepkg %s\n" "$makepkg_version"
-	printf "# using %s\n" "$(fakeroot -v)"
-
-	write_kv_pair "pkgname" "$pkgname"
-	write_kv_pair "pkgbase" "$pkgbase"
-	write_kv_pair "xdata" "pkgtype=$pkgtype" "${xdata[@]}"
-
-	local fullver=$(get_full_version)
-	write_kv_pair "pkgver" "$fullver"
-
-	# TODO: all fields should have this treatment
-	local spd="${pkgdesc//+([[:space:]])/ }"
-	spd=("${spd[@]#[[:space:]]}")
-	spd=("${spd[@]%[[:space:]]}")
-
-	write_kv_pair "pkgdesc" "$spd"
-	write_kv_pair "url" "$url"
-	write_kv_pair "builddate" "$SOURCE_DATE_EPOCH"
-	write_kv_pair "packager" "$PACKAGER"
-	write_kv_pair "size" "$size"
-	write_kv_pair "arch" "$pkgarch"
-
-	write_kv_pair "license"     "${license[@]}"
-	write_kv_pair "replaces"    "${replaces[@]}"
-	write_kv_pair "group"       "${groups[@]}"
-	write_kv_pair "conflict"    "${conflicts[@]}"
-	write_kv_pair "provides"    "${provides[@]}"
-	write_kv_pair "backup"      "${backup[@]}"
-	write_kv_pair "depend"      "${depends[@]}"
-	write_kv_pair "optdepend"   "${optdepends[@]//+([[:space:]])/ }"
-	write_kv_pair "makedepend"  "${makedepends[@]}"
-	write_kv_pair "checkdepend" "${checkdepends[@]}"
+  local \
+    fullver \
+    size \
+    spd
+  size=$(
+    dirsize)
+  merge_arch_attrs
+  generate_autodeps
+  printf \
+    "# Generated by makepkg %s\n" \
+    "$makepkg_version"
+  printf \
+    "# using %s\n" \
+    "$(fakeroot -v)"
+  write_kv_pair \
+    "pkgname" \
+    "$pkgname"
+  write_kv_pair \
+    "pkgbase" \
+    "$pkgbase"
+  write_kv_pair \
+    "xdata" \
+    "pkgtype=$pkgtype" \
+    "${xdata[@]}"
+  fullver=$(
+    get_full_version)
+  write_kv_pair \
+    "pkgver" \
+    "$fullver"
+  # TODO: all fields should have this treatment
+  spd="${pkgdesc//+([[:space:]])/ }"
+  spd=(
+    "${spd[@]#[[:space:]]}"
+  )
+  spd=(
+    "${spd[@]%[[:space:]]}"
+  )
+  write_kv_pair \
+    "pkgdesc" \
+      "$spd"
+  write_kv_pair \
+    "url" \
+    "$url"
+  write_kv_pair \
+    "builddate" \
+    "$SOURCE_DATE_EPOCH"
+  write_kv_pair \
+    "packager" \
+    "$PACKAGER"
+  write_kv_pair \
+    "size" \
+    "$size"
+  write_kv_pair \
+    "arch" \
+    "$pkgarch"
+  write_kv_pair \
+    "license" \
+    "${license[@]}"
+  write_kv_pair \
+    "replaces" \
+    "${replaces[@]}"
+  write_kv_pair \
+    "group" \
+    "${groups[@]}"
+  write_kv_pair \
+    "conflict" \
+    "${conflicts[@]}"
+  write_kv_pair \
+    "provides" \
+    "${provides[@]}"
+  write_kv_pair \
+    "backup" \
+    "${backup[@]}"
+  write_kv_pair \
+    "depend" \
+    "${depends[@]}"
+  write_kv_pair \
+    "optdepend" \
+    "${optdepends[@]//+([[:space:]])/ }"
+  write_kv_pair \
+    "makedepend" \
+    "${makedepends[@]}"
+  write_kv_pair \
+    "checkdepend" \
+    "${checkdepends[@]}"
 }
 
 write_buildinfo() {
-	write_kv_pair "format" "2"
-
-	write_kv_pair "pkgname" "$pkgname"
-	write_kv_pair "pkgbase" "$pkgbase"
-
-	local fullver=$(get_full_version)
-	write_kv_pair "pkgver" "$fullver"
-
-	write_kv_pair "pkgarch" "$pkgarch"
-
-	local sum="$(sha256sum "${BUILDFILE}")"
-	sum=${sum%% *}
-	write_kv_pair "pkgbuild_sha256sum" $sum
-
-	write_kv_pair "packager" "${PACKAGER}"
-	write_kv_pair "builddate" "${SOURCE_DATE_EPOCH}"
-	write_kv_pair "builddir"  "${BUILDDIR}"
-	write_kv_pair "startdir"  "${startdir}"
-	write_kv_pair "buildtool" "${BUILDTOOL:-makepkg}"
-	write_kv_pair "buildtoolver" "${BUILDTOOLVER:-$makepkg_version}"
-	write_kv_pair "buildenv" "${BUILDENV[@]}"
-	write_kv_pair "options" "${OPTIONS[@]}"
-
-	# I dont like this whole section honestly
-	# neither as it was neither as I've written it
-	# This whole file is written in a way I don't like
-	local pkginfos=$(LC_ALL=C run_pacman -Qi)
-
-	local _pkginfos_name=( $(echo ${pkginfos} | awk -F': ' '\
-		/^Name .*/ {printf "%s", $2}')
-	)
-
-	# Bleah
-	local pkginfos_pkgver=( $(echo ${pkginfos} | grep \
-		-e "^Version\b" | sed "s/^Version.*://")
-	)
-
-	local pkginfos_arch+=($(echo ${pkginfos} | awk -F': ' '\
-		/^Architecture .*/ {print "-"$2}'))
-
-	local pkginfos_parsed=()
-	local _pkg
-	for _pkg in $(seq "${#pkginfos_name[@]}"); do
-		pkginfos_parsed+=(
-			"${pkginfos_name["${_pkg}"]}-${pkginfos_pkgver["${_pkg}"]}-${_pkginfos_arch["${_pkg}"]}"
-		)
-	done
-
-	write_kv_pair "installed" "${pkginfos_parsed[@]}"
+  local \
+    fullver \
+    sum \
+    pkginfos=() \
+    _names=() \
+    _pkgvers=() \
+    _arches=() \
+    pkginfos_parsed=() \
+    _pkg
+  write_kv_pair \
+    "format" \
+    "2"
+  write_kv_pair \
+    "pkgname" \
+    "$pkgname"
+  write_kv_pair \
+    "pkgbase" \
+    "$pkgbase"
+  fullver=$(
+    get_full_version)
+  write_kv_pair \
+    "pkgver" \
+    "$fullver"
+  write_kv_pair \
+    "pkgarch" \
+    "$pkgarch"
+  sum="$(
+    sha256sum \
+      "${BUILDFILE}")"
+  sum=${sum%% *}
+  write_kv_pair \
+    "pkgbuild_sha256sum" \
+    $sum
+  write_kv_pair \
+    "packager" \
+    "${PACKAGER}"
+  write_kv_pair \
+    "builddate" \
+    "${SOURCE_DATE_EPOCH}"
+  write_kv_pair \
+    "builddir" \
+    "${BUILDDIR}"
+  write_kv_pair \
+    "startdir" \
+    "${startdir}"
+  write_kv_pair \
+    "buildtool" \
+    "${BUILDTOOL:-makepkg}"
+  write_kv_pair \
+    "buildtoolver" \
+    "${BUILDTOOLVER:-$makepkg_version}"
+  write_kv_pair \
+    "buildenv" \
+    "${BUILDENV[@]}"
+  write_kv_pair \
+    "options" \
+    "${OPTIONS[@]}"
+  # I dont like this whole section honestly
+  # neither as it was neither as I've written it
+  # This whole file is written in a way I don't like
+  pkginfos=$(
+    LC_ALL=C \
+    run_pacman \
+    -Qi)
+  _names+=( $(
+    echo \
+      ${pkginfos} |
+      awk \
+        -F': ' '\
+  	/^Name .*/ {printf "%s", $2}')
+  )
+  # Bleah
+  _pkgvers+=( $(
+    echo \
+      ${pkginfos} |
+      grep \
+        -e \
+	  "^Version\b" |
+        sed \
+          "s/^Version.*://")
+  )
+  _arches+=( $(
+    echo \
+      ${pkginfos} |
+      awk \
+        -F': ' \
+	'\
+  	/^Architecture .*/ {print "-"$2}')
+  )
+  for _pkg \
+    in $(seq \
+           "${#pkginfos_name[@]}"); do
+    pkginfos_parsed+=(
+      "${_names["${_pkg}"]}-${_pkgvers["${_pkg}"]}-${_arches["${_pkg}"]}"
+    )
+  done
+  write_kv_pair \
+    "installed" \
+    "${pkginfos_parsed[@]}"
 }
 
 # build a sorted NUL-separated list of the full contents of the current
@@ -663,192 +985,363 @@ write_buildinfo() {
 # database files are placed at the beginning of the package regardless of
 # sorting
 list_package_files() {
-	(
-		export LC_COLLATE=C
-		shopt -s dotglob globstar
-		# bash 5.0 only works with combo directory + file globs
-		printf '%s\0' **/*
-	)
+  (
+    export \
+      LC_COLLATE="C"
+    shopt \
+      -s \
+      dotglob \
+      globstar
+    # bash 5.0 only works with combo directory + file globs
+    printf \
+      '%s\0' \
+      **"/"*
+  )
 }
 
 create_package() {
-	(( NOARCHIVE )) && return 0
-
-	pkgtype=${pkgtype:-pkg}
-
-	if [[ ! -d $pkgdir ]]; then
-		error "$(gettext "Missing %s directory.")" "\$pkgdir/"
-		plainerr "$(gettext "Aborting...")"
-		exit $E_MISSING_PKGDIR
-	fi
-
-	cd_safe "$pkgdir"
-	msg "$(gettext "Creating package \"%s\"...")" "$pkgname"
-
-	pkgarch=$(get_pkg_arch)
-	msg2 "$(gettext "Generating %s file...")" ".PKGINFO"
-	write_pkginfo > .PKGINFO
-	msg2 "$(gettext "Generating %s file...")" ".BUILDINFO"
-	write_buildinfo > .BUILDINFO
-
-	# check for changelog/install files
-	for i in 'changelog/.CHANGELOG' 'install/.INSTALL'; do
-		IFS='/' read -r orig dest < <(printf '%s\n' "$i")
-
-		if [[ -n ${!orig} ]]; then
-			msg2 "$(gettext "Adding %s file...")" "$orig"
-			if ! cp "$startdir/${!orig}" "$dest"; then
-				error "$(gettext "Failed to add %s file to package.")" "$orig"
-				exit $E_MISSING_FILE
-			fi
-			chmod 644 "$dest"
-		fi
-	done
-
-	# tar it up
-	local fullver=$(get_full_version)
-	local pkg_file="$PKGDEST/${pkgname}-${fullver}-${pkgarch}${PKGEXT}"
-	local ret=0
-
-	[[ -f $pkg_file ]] && rm -f "$pkg_file"
-	[[ -f $pkg_file.sig ]] && rm -f "$pkg_file.sig"
-
-	# ensure all elements of the package have the same mtime
-	find . -exec touch -h -d @$SOURCE_DATE_EPOCH {} +
-
-	msg2 "$(gettext "Generating .MTREE file...")"
-	list_package_files | LANG=C bsdtar -cnf - --format=mtree \
-		--options='!all,use-set,type,uid,gid,mode,time,size,sha256,link' \
-		--null --files-from - --exclude .MTREE | gzip -c -f -n > .MTREE
-	touch -d @$SOURCE_DATE_EPOCH .MTREE
-
-	msg2 "$(gettext "Compressing package...")"
-	# TODO: Maybe this can be set globally for robustness
-	shopt -s -o pipefail
-	list_package_files | LANG=C bsdtar --no-fflags @BSDTAR_NO_READ_SPARSE@ -cnf - --null --files-from - |
-		compress_as "$PKGEXT" > "${pkg_file}" || ret=$?
-
-	shopt -u -o pipefail
-
-	if (( ret )); then
-		error "$(gettext "Failed to create package file.")"
-		exit $E_PACKAGE_FAILED
-	fi
+  local \
+    fullver \
+    pkg_file \
+    ret
+  (( NOARCHIVE )) && \
+    return \
+      0
+  pkgtype=${pkgtype:-pkg}
+  if [[ ! -d $pkgdir ]]; then
+    error \
+      "$(gettext \
+           "Missing %s directory.")" \
+      "\$pkgdir/"
+    plainerr \
+      "$(gettext \
+           "Aborting...")"
+    exit \
+      $E_MISSING_PKGDIR
+  fi
+  cd_safe \
+    "$pkgdir"
+  msg \
+    "$(gettext \
+         "Creating package \"%s\"...")" \
+    "$pkgname"
+  pkgarch=$(
+    get_pkg_arch)
+  msg2 \
+    "$(gettext \
+         "Generating %s file...")" \
+    ".PKGINFO"
+  write_pkginfo > \
+    ".PKGINFO"
+  msg2 \
+    "$(gettext \
+         "Generating %s file...")" \
+    ".BUILDINFO"
+  write_buildinfo > \
+    ".BUILDINFO"
+  # check for changelog/install files
+  for i \
+    in 'changelog/.CHANGELOG' \
+       'install/.INSTALL'; do
+    IFS='/' \
+    read \
+      -r \
+      orig \
+      dest < \
+      <(printf '%s\n' "$i")
+    if [[ -n ${!orig} ]]; then
+      msg2 \
+        "$(gettext \
+             "Adding %s file...")" \
+             "$orig"
+      if ! cp "$startdir/${!orig}" "$dest"; then
+        error \
+          "$(gettext "Failed to add %s file to package.")" "$orig"
+        exit \
+          $E_MISSING_FILE
+      fi
+      chmod \
+        644 \
+	"$dest"
+    fi
+  done
+  # tar it up
+  fullver=$(
+    get_full_version)
+  pkg_file="$PKGDEST/${pkgname}-${fullver}-${pkgarch}${PKGEXT}"
+  ret=0
+  [[ -f $pkg_file ]] && \
+    rm \
+      -f \
+      "$pkg_file"
+  [[ -f $pkg_file.sig ]] && \
+    rm \
+      -f \
+      "$pkg_file.sig"
+  # ensure all elements of the package have the same mtime
+  find \
+    "." \
+    -exec \
+      "touch" \
+    -h \
+    -d \
+      @$SOURCE_DATE_EPOCH {} +
+  msg2 \
+    "$(gettext \
+         "Generating .MTREE file...")"
+  list_package_files |
+    LANG="C" \
+    bsdtar \
+      -cnf - \
+      --format="mtree" \
+      --options='!all,use-set,type,uid,gid,mode,time,size,sha256,link' \
+      --null \
+      --files-from - \
+      --exclude \
+        ".MTREE" |
+      gzip \
+        -c \
+        -f \
+        -n > \
+    ".MTREE"
+  touch \
+    -d \
+    @$SOURCE_DATE_EPOCH \
+    ".MTREE"
+  msg2 \
+    "$(gettext \
+         "Compressing package...")"
+  # TODO: Maybe this can be set globally for robustness
+  shopt \
+    -s \
+    -o \
+    pipefail
+  list_package_files |
+    LANG="C" \
+    bsdtar \
+      --no-fflags \
+      @BSDTAR_NO_READ_SPARSE@ \
+      -cnf - \
+      --null \
+      --files-from - |
+      compress_as \
+        "$PKGEXT" > \
+    "${pkg_file}" || \
+    ret=$?
+  shopt \
+    -u \
+    -o \
+    pipefail
+  if (( ret )); then
+    error \
+      "$(gettext \
+           "Failed to create package file.")"
+    exit \
+      $E_PACKAGE_FAILED
+  fi
 }
 
 create_debug_package() {
-	# check if a debug package was requested
-	if ! check_option "debug" "y" || ! check_option "strip" "y"; then
-		return 0
-	fi
-
-	local pkgdir="$pkgdirbase/$pkgbase-@DEBUGSUFFIX@"
-
-	# check if we have any debug symbols to package
-	if dir_is_empty "$pkgdir/usr/lib/debug"; then
-		return 0
-	fi
-
-	unset groups depends optdepends provides conflicts replaces backup install changelog
-
-	local pkg
-	for pkg in ${pkgname[@]}; do
-		if [[ $pkg != $pkgbase ]]; then
-			provides+=("$pkg-@DEBUGSUFFIX@")
-		fi
-	done
-
-	pkgdesc="Detached debugging symbols for $pkgbase"
-	pkgname=$pkgbase-@DEBUGSUFFIX@
-	pkgtype=debug
-
-	create_package
+  local \
+    pkg \
+    pkgdir
+  # check if a debug package was requested
+  if ! check_option \
+         "debug" \
+         "y" || \
+     ! check_option \
+         "strip" \
+         "y"; then
+    return \
+      0
+  fi
+  pkgdir="$pkgdirbase/$pkgbase-@DEBUGSUFFIX@"
+  # check if we have any debug symbols to package
+  if dir_is_empty \
+       "$pkgdir/usr/lib/debug"; then
+    return \
+      0
+  fi
+  unset \
+    groups \
+    depends \
+    optdepends \
+    provides \
+    conflicts \
+    replaces \
+    backup \
+    install \
+    changelog
+  for pkg in ${pkgname[@]}; do
+    if [[ $pkg != $pkgbase ]]; then
+      provides+=(
+        "$pkg-@DEBUGSUFFIX@"
+      )
+    fi
+  done
+  pkgdesc="Detached debugging symbols for $pkgbase"
+  pkgname=$pkgbase-@DEBUGSUFFIX@
+  pkgtype=debug
+  create_package
 }
 
 create_srcpackage() {
-	local ret=0
-	msg "$(gettext "Creating source package...")"
-	local srclinks="$(mktemp -d "$startdir"/srclinks.XXXXXXXXX)"
-	mkdir "${srclinks}"/${pkgbase}
-
-	pkgtype=src
-
-	msg2 "$(gettext "Adding %s...")" "$BUILDSCRIPT"
-	ln -s "${BUILDFILE}" "${srclinks}/${pkgbase}/${BUILDSCRIPT}"
-
-	msg2 "$(gettext "Generating %s file...")" .SRCINFO
-	write_srcinfo > "$srclinks/$pkgbase"/.SRCINFO
-
-	local file all_sources
-
-	get_all_sources 'all_sources'
-	for file in "${all_sources[@]}"; do
-		if [[ "$file" = "$(get_filename "$file")" ]] || (( SOURCEONLY == 2 )); then
-			local absfile
-			absfile=$(get_filepath "$file") || missing_source_file "$file"
-			msg2 "$(gettext "Adding %s...")" "${absfile##*/}"
-			if [[ ! -d "$absfile" ]]; then
-				ln -s "$absfile" "$srclinks/$pkgbase"
-			else
-				cp -as "$absfile" "$srclinks/$pkgbase"
-			fi
-		fi
-	done
-
-	# set pkgname the same way we do for running package(), this way we get
-	# the right value in extract_function_variable
-	local pkgname_backup=(${pkgname[@]})
-	local i pkgname
-	for i in 'changelog' 'install'; do
-		local file files
-
-		[[ ${!i} ]] && files+=("${!i}")
-		for pkgname in "${pkgname_backup[@]}"; do
-			if extract_function_variable "package_$pkgname" "$i" 0 file; then
-				files+=("$file")
-			fi
-		done
-
-		for file in "${files[@]}"; do
-			if [[ $file && ! -f "${srclinks}/${pkgbase}/$file" ]]; then
-				msg2 "$(gettext "Adding %s file (%s)...")" "$i" "${file}"
-				ln -s "${startdir}/$file" "${srclinks}/${pkgbase}/"
-			fi
-		done
-	done
-	pkgname=(${pkgname_backup[@]})
-
-	# add a copy of source PGP signing public keys if available in keys/pgp/<fingerprint>.asc
-	local key
-	for key in ${validpgpkeys[@]}; do
-		if [[ -f keys/pgp/$key.asc ]]; then
-			mkdir -p "${srclinks}/${pkgbase}/keys/pgp/"
-			ln -s "${startdir}/keys/pgp/$key.asc" "${srclinks}/${pkgbase}/keys/pgp/"
-		fi
-	done
-
-
-	local fullver=$(get_full_version)
-	local pkg_file="$SRCPKGDEST/${pkgbase}-${fullver}${SRCEXT}"
-
-	# tar it up
-	msg2 "$(gettext "Compressing source package...")"
-	cd_safe "${srclinks}"
-
-	# TODO: Maybe this can be set globally for robustness
-	shopt -s -o pipefail
-	list_package_files | LANG=C bsdtar --no-fflags @BSDTAR_NO_READ_SPARSE@ -cnLf - --null --files-from - |
-		compress_as "$SRCEXT" > "${pkg_file}" || ret=$?
-
-	shopt -u -o pipefail
-
-	if (( ret )); then
-		error "$(gettext "Failed to create source package file.")"
-		exit $E_PACKAGE_FAILED
-	fi
-
-	cd_safe "${startdir}"
-	rm -rf "${srclinks}"
+  local \
+    pkgname_backup=() \
+    absfile \
+    all_sources \
+    file \
+    files=() \
+    fullver \
+    pkg_file \
+    key \
+    ret \
+    srclinks \
+    _i
+  ret=0
+  msg \
+    "$(gettext "Creating source package...")"
+  srclinks="$(
+    mktemp \
+      -d \
+      "$startdir"/srclinks.XXXXXXXXX)"
+  mkdir \
+    "${srclinks}/${pkgbase}"
+  pkgtype=src
+  msg2 \
+    "$(gettext \
+         "Adding %s...")" \
+    "$BUILDSCRIPT"
+  ln \
+    -s \
+    "${BUILDFILE}" \
+    "${srclinks}/${pkgbase}/${BUILDSCRIPT}"
+  msg2 \
+    "$(gettext \
+         "Generating %s file...")" \
+    ".SRCINFO"
+  write_srcinfo > \
+    "${srclinks}/${pkgbase}/.SRCINFO"
+  get_all_sources \
+    'all_sources'
+  for file in "${all_sources[@]}"; do
+    if [[ "$file" = "$(get_filename "$file")" ]] || (( SOURCEONLY == 2 )); then
+      absfile=$(
+        get_filepath \
+          "$file") || \
+        missing_source_file \
+          "${file}"
+      msg2 \
+        "$(gettext \
+             "Adding %s...")" \
+        "${absfile##*/}"
+      if [[ ! -d "$absfile" ]]; then
+        ln \
+          -s \
+          "$absfile" \
+          "$srclinks/$pkgbase"
+      else
+      	cp \
+          -as \
+          "$absfile" \
+          "$srclinks/$pkgbase"
+      fi
+    fi
+  done
+  # set pkgname the same way we do for running package(), this way we get
+  # the right value in extract_function_variable
+  pkgname_backup=(
+    ${pkgname[@]}
+  )
+  for _i \
+    in 'changelog' \
+       'install'; do
+    [[ ${!_i} ]] && \
+      files+=("${!_i}")
+    for pkgname in "${pkgname_backup[@]}"; do
+      if extract_function_variable \
+           "package_$pkgname" \
+           "${_i}" \
+           0 \
+           "file"; then
+        files+=(
+          "$file"
+        )
+      fi
+    done
+    for file in "${files[@]}"; do
+      if [[ $file && \
+            ! -f "${srclinks}/${pkgbase}/$file" ]]; then
+        msg2 \
+          "$(gettext \
+               "Adding %s file (%s)...")" \
+          "${_i}" \
+          "${file}"
+        ln \
+          -s \
+          "${startdir}/$file" \
+          "${srclinks}/${pkgbase}/"
+      fi
+    done
+  done
+  pkgname=(
+    ${pkgname_backup[@]}
+  )
+  # add a copy of source PGP signing public
+  # keys if available in keys/pgp/<fingerprint>.asc
+  for key in ${validpgpkeys[@]}; do
+    if [[ -f keys/pgp/$key.asc ]]; then
+      mkdir \
+        -p \
+        "${srclinks}/${pkgbase}/keys/pgp/"
+      ln \
+        -s \
+        "${startdir}/keys/pgp/$key.asc" \
+        "${srclinks}/${pkgbase}/keys/pgp/"
+    fi
+  done
+  fullver=$(
+    get_full_version)
+  pkg_file="$SRCPKGDEST/${pkgbase}-${fullver}${SRCEXT}"
+  # tar it up
+  msg2 \
+    "$(gettext \
+         "Compressing source package...")"
+  cd_safe \
+    "${srclinks}"
+  # TODO: Maybe this can be set globally for robustness
+  shopt \
+    -s \
+    -o \
+    pipefail
+  list_package_files |
+    LANG="C" \
+    bsdtar \
+      --no-fflags \
+      @BSDTAR_NO_READ_SPARSE@ \
+      -cnLf - \
+      --null \
+      --files-from - |
+      compress_as \
+        "$SRCEXT" > \
+    "${pkg_file}" || \
+    ret=$?
+  shopt \
+    -u \
+    -o \
+    pipefail
+  if (( ret )); then
+    error \
+      "$(gettext \
+           "Failed to create source package file.")"
+    exit \
+      $E_PACKAGE_FAILED
+  fi
+  cd_safe \
+    "${startdir}"
+  rm \
+    -rf \
+    "${srclinks}"
 }
 
 install_package() {
@@ -1458,6 +1951,14 @@ fi
 # ensure existence of our src directory so we can begin with sources
 mkdir -p "$srcdir"
 chmod a-s "$srcdir"
+
+if [[ "${_os}" == "Msys" ]]; then
+  export \
+		MINGW_CHOST MINGW_PREFIX MINGW_PACKAGE_PREFIX \
+  	DXSDK_DIR \
+		ACLOCAL_PATH \
+		PKG_CONFIG_PATH
+fi
 
 if (( !REPKG )); then
 	if (( NOEXTRACT && ! VERIFYSOURCE )); then

@@ -1271,7 +1271,7 @@ create_srcpackage() {
     done
     for file in "${files[@]}"; do
       if [[ $file && \
-            ! -f "${srclinks}/${pkgbase}/$file" ]]; then
+            ! -f "${srclinks}/${pkgbase}/${file}" ]]; then
         msg2 \
           "$(gettext \
                "Adding %s file (%s)...")" \
@@ -1296,7 +1296,7 @@ create_srcpackage() {
         "${srclinks}/${pkgbase}/keys/pgp/"
       ln \
         -s \
-        "${startdir}/keys/pgp/$key.asc" \
+        "${startdir}/keys/pgp/${key}.asc" \
         "${srclinks}/${pkgbase}/keys/pgp/"
     fi
   done
@@ -1323,7 +1323,7 @@ create_srcpackage() {
       --null \
       --files-from - |
       compress_as \
-        "$SRCEXT" > \
+        "${SRCEXT}" > \
     "${pkg_file}" || \
     ret=$?
   shopt \
@@ -1335,7 +1335,7 @@ create_srcpackage() {
       "$(gettext \
            "Failed to create source package file.")"
     exit \
-      $E_PACKAGE_FAILED
+      "${E_PACKAGE_FAILED}"
   fi
   cd_safe \
     "${startdir}"
@@ -1345,88 +1345,167 @@ create_srcpackage() {
 }
 
 install_package() {
-	(( ! INSTALL )) && return 0
-
-	remove_deps || return $?
-	RMDEPS=0
-
-	if (( ! SPLITPKG )); then
-		msg "$(gettext "Installing package %s with %s...")" "$pkgname" "$PACMAN -U"
-	else
-		msg "$(gettext "Installing %s package group with %s...")" "$pkgbase" "$PACMAN -U"
-	fi
-
-	local fullver pkgarch pkg pkglist
-	(( ASDEPS )) && pkglist+=('--asdeps')
-	(( NEEDED )) && pkglist+=('--needed')
-
-	for pkg in ${pkgname[@]}; do
-		fullver=$(get_full_version)
-		# Split package not relevant for current CARCH
-		if ! pkgarch=$(get_pkg_arch $pkg); then
-			continue
-		fi
-		pkglist+=("$PKGDEST/${pkg}-${fullver}-${pkgarch}${PKGEXT}")
-
-		if [[ -f "$PKGDEST/${pkg}-@DEBUGSUFFIX@-${fullver}-${pkgarch}${PKGEXT}" ]]; then
-			pkglist+=("$PKGDEST/${pkg}-@DEBUGSUFFIX@-${fullver}-${pkgarch}${PKGEXT}")
-		fi
-	done
-
-	if ! run_pacman -U "${pkglist[@]}"; then
-		warning "$(gettext "Failed to install built package(s).")"
-		return $E_INSTALL_FAILED
-	fi
+  (( ! INSTALL )) && \
+    return \
+      0
+  remove_deps || \
+    return \
+      $?
+  RMDEPS=0
+  if (( ! SPLITPKG )); then
+    msg \
+      "$(gettext \
+           "Installing package %s with %s...")" \
+      "${pkgname}" \
+      "${PACMAN} -U"
+  else
+    msg \
+      "$(gettext \
+           "Installing %s package group with %s...")" \
+      "${pkgbase}" \
+      "${PACMAN} -U"
+  fi
+  local \
+    fullver \
+    pkgarch \
+    pkg \
+    pkgdest \
+    pkglist
+  (( ASDEPS )) && \
+    pkglist+=(
+      '--asdeps'
+    )
+  (( NEEDED )) && \
+    pkglist+=(
+      '--needed'
+    )
+  for pkg in ${pkgname[@]}; do
+    fullver=$(
+      get_full_version)
+    # Split package not relevant for current CARCH
+    if ! pkgarch=$(
+           get_pkg_arch \
+           "${pkg}"); then
+      continue
+    fi
+    pkglist+=(
+      "${PKGDEST}/${pkg}-${fullver}-${pkgarch}${PKGEXT}"
+    )
+    pkgdest="$PKGDEST/${pkg}-@DEBUGSUFFIX@-${fullver}-${pkgarch}${PKGEXT}"
+    if [[ -f "${pkgdest}" ]]; then
+      pkglist+=(
+        "${pkgdest}"
+      )
+    fi
+  done
+  if ! run_pacman \
+         -U \
+         "${pkglist[@]}"; then
+    warning \
+      "$(gettext \
+           "Failed to install built package(s).")"
+    return \
+      "${E_INSTALL_FAILED}"
+  fi
 }
 
 check_build_status() {
-	local fullver pkgarch allpkgbuilt somepkgbuilt
-	if (( ! SPLITPKG )); then
-		fullver=$(get_full_version)
-		pkgarch=$(get_pkg_arch)
-		if [[ -f $PKGDEST/${pkgname}-${fullver}-${pkgarch}${PKGEXT} ]] \
-				 && ! (( FORCE || SOURCEONLY || NOBUILD || NOARCHIVE)); then
-			if (( INSTALL )); then
-				warning "$(gettext "A package has already been built, installing existing package...")"
-				install_package
-				exit $?
-			else
-				error "$(gettext "A package has already been built. (use %s to overwrite)")" "-f"
-				exit $E_ALREADY_BUILT
-			fi
-		fi
-	else
-		allpkgbuilt=1
-		somepkgbuilt=0
-		for pkg in ${pkgname[@]}; do
-			fullver=$(get_full_version)
-			# Split package not relevant for current CARCH
-			if ! pkgarch=$(get_pkg_arch $pkg); then
-				continue
-			fi
-			if [[ -f $PKGDEST/${pkg}-${fullver}-${pkgarch}${PKGEXT} ]]; then
-				somepkgbuilt=1
-			else
-				allpkgbuilt=0
-			fi
-		done
-		if ! (( FORCE || SOURCEONLY || NOBUILD || NOARCHIVE)); then
-			if (( allpkgbuilt )); then
-				if (( INSTALL )); then
-					warning "$(gettext "The package group has already been built, installing existing packages...")"
-					install_package
-					exit $?
-				else
-					error "$(gettext "The package group has already been built. (use %s to overwrite)")" "-f"
-					exit $E_ALREADY_BUILT
-				fi
-			fi
-			if (( somepkgbuilt && ! PKGVERFUNC )); then
-				error "$(gettext "Part of the package group has already been built. (use %s to overwrite)")" "-f"
-				exit $E_ALREADY_BUILT
-			fi
-		fi
-	fi
+  local \
+    fullver \
+    pkgarch \
+    allpkgbuilt \
+    somepkgbuilt
+  if (( ! SPLITPKG )); then
+    fullver=$(
+      get_full_version)
+    pkgarch=$(
+      get_pkg_arch)
+    if [[ -f "${PKGDEST}/${pkgname}-${fullver}-${pkgarch}${PKGEXT}" ]] && \
+          ! (( FORCE || \
+               SOURCEONLY || \
+               NOBUILD || \
+               NOARCHIVE)); then
+      if (( INSTALL )); then
+        warning \
+          "$(gettext \
+               "A package has already been built, installing existing package...")"
+        install_package
+        exit \
+          $?
+      else
+        error \
+          "$(gettext \
+               "A package has already been built. (use %s to overwrite)")" \
+          "-f"
+        exit \
+         "${E_ALREADY_BUILT}"
+      fi
+    fi
+  else
+    allpkgbuilt=1
+    somepkgbuilt=0
+    for pkg in ${pkgname[@]}; do
+      fullver=$(
+        get_full_version)
+      # Split package not relevant for current CARCH
+      if ! pkgarch=$(
+             get_pkg_arch \
+               $pkg); then
+        continue
+      fi
+      if [[ -f "${PKGDEST}/${pkg}-${fullver}-${pkgarch}${PKGEXT}" ]]; then
+        somepkgbuilt=1
+      else
+        allpkgbuilt=0
+      fi
+    done
+    if ! (( FORCE || \
+            SOURCEONLY || \
+            NOBUILD || NOARCHIVE)); then
+      if (( allpkgbuilt )); then
+        local \
+          _msg=()
+        if (( INSTALL )); then
+          _msg=(
+            "The package group has already"
+            "been built, installing existing packages..."
+          )
+          warning \
+            "$(gettext \
+                 "${_msg[*]}")"
+          install_package
+            exit \
+              $?
+        else
+          _msg=(
+            "The package group has already"
+            "been built. (use %s to overwrite)"
+          )
+          error \
+            "$(gettext \
+                 "${_msg[*]}")" \
+            "-f"
+          exit \
+            "${E_ALREADY_BUILT}"
+        fi
+      fi
+      if (( somepkgbuilt && ! \
+            PKGVERFUNC )); then
+        local \
+          _msg=()
+        _msg=(
+          "Part of the package group has"
+          "already been built."
+          "(use %s to overwrite)"
+        )
+        error \
+          "$(gettext \
+               "${_msg[*]}")" "-f"
+        exit \
+          "${E_ALREADY_BUILT}"
+      fi
+    fi
+  fi
 }
 
 backup_package_variables() {
@@ -1882,150 +1961,236 @@ msg "$(gettext "Making package: %s")" "$pkgbase $basever ($(date +%c))"
 
 # if we are creating a source-only package, go no further
 if (( SOURCEONLY )); then
-	if [[ -f $SRCPKGDEST/${pkgbase}-${basever}${SRCEXT} ]] \
-			&& (( ! FORCE )); then
-		error "$(gettext "A source package has already been built. (use %s to overwrite)")" "-f"
-		exit $E_ALREADY_BUILT
-	fi
-
-	# Get back to our src directory so we can begin with sources.
-	mkdir -p "$srcdir"
-	chmod a-s "$srcdir"
-	cd_safe "$srcdir"
-	if (( SOURCEONLY == 2 )); then
-		download_sources allarch
-	elif ( (( ! SKIPCHECKSUMS )) || \
-			( (( ! SKIPPGPCHECK )) && source_has_signatures ) ); then
-		download_sources allarch
-	fi
-	check_source_integrity all
-	cd_safe "$startdir"
-
-	enter_fakeroot
-
-	if [[ $SIGNPKG = 'y' ]]; then
-		msg "$(gettext "Signing package...")"
-		create_signature "$SRCPKGDEST/${pkgbase}-$(get_full_version)${SRCEXT}"
-	fi
-
-	msg "$(gettext "Source package created: %s")" "$pkgbase ($(date +%c))"
-	exit $E_OK
+  if [[ -f $SRCPKGDEST/${pkgbase}-${basever}${SRCEXT} ]] && \
+        (( ! FORCE )); then
+    error \
+      "$(gettext \
+           "A source package has already been built. (use %s to overwrite)")" "-f"
+    exit \
+      "${E_ALREADY_BUILT}"
+  fi
+  # Get back to our src directory so we can begin with sources.
+  mkdir \
+    -p \
+    "${srcdir}"
+  chmod \
+    a-s \
+    "${srcdir}"
+  cd_safe \
+    "${srcdir}"
+  if (( SOURCEONLY == 2 )); then
+    download_sources allarch
+  elif ( (( ! SKIPCHECKSUMS )) || \
+            ( (( ! SKIPPGPCHECK )) && \
+              source_has_signatures ) ); then
+    download_sources allarch
+  fi
+  check_source_integrity \
+    all
+  cd_safe \
+    "${startdir}"
+  enter_fakeroot
+  if [[ $SIGNPKG = 'y' ]]; then
+    msg \
+      "$(gettext \
+           "Signing package...")"
+    create_signature \
+      "${SRCPKGDEST}/${pkgbase}-$(get_full_version)${SRCEXT}"
+  fi
+  msg \
+    "$(gettext \
+         "Source package created: %s")" \
+       "$pkgbase ($(date \
+                      "+%c"))"
+  exit \
+    "${E_OK}"
 fi
-
-if (( NODEPS || ( VERIFYSOURCE && !DEP_BIN ) )); then
-	if (( NODEPS )); then
-		warning "$(gettext "Skipping dependency checks.")"
-	fi
-else
-	if (( RMDEPS && ! INSTALL )); then
-		original_pkglist=($(run_pacman -Qq))    # required by remove_dep
-	fi
-	deperr=0
-
-	msg "$(gettext "Checking runtime dependencies...")"
-	resolve_deps ${depends[@]} || deperr=1
-
-	if (( RMDEPS && INSTALL )); then
-		original_pkglist=($(run_pacman -Qq))    # required by remove_dep
-	fi
-
-	if (( ! deperr )); then
-		msg "$(gettext "Checking buildtime dependencies...")"
-		if (( CHECKFUNC )); then
-			resolve_deps "${makedepends[@]}" "${checkdepends[@]}" || deperr=1
-		else
-			resolve_deps "${makedepends[@]}" || deperr=1
-		fi
-	fi
-
-	if (( RMDEPS )); then
-		current_pkglist=($(run_pacman -Qq))    # required by remove_deps
-	fi
-
-	if (( deperr )); then
-		error "$(gettext "Could not resolve all dependencies.")"
-		exit $E_INSTALL_DEPS_FAILED
-	fi
+if (( NODEPS || \
+      ( VERIFYSOURCE && \
+        !DEP_BIN ) )); then
+  if (( NODEPS )); then
+    warning \
+      "$(gettext \
+           "Skipping dependency checks.")"
+  fi
+  if (( RMDEPS && \
+        ! INSTALL )); then
+    # required by remove_dep
+    original_pkglist=( $(
+      run_pacman \
+        -Qq)
+    )
+  fi
+  deperr=0
+  msg \
+    "$(gettext \
+         "Checking runtime dependencies...")"
+  resolve_deps \
+    "${depends[@]}" || \
+    deperr=1
+  if (( RMDEPS && \
+        INSTALL )); then
+    # required by remove_dep
+    original_pkglist=( $(
+      run_pacman \
+        -Qq)
+    )
+  fi
+  if (( ! deperr )); then
+    msg \
+      "$(gettext \
+           "Checking buildtime dependencies...")"
+    if (( CHECKFUNC )); then
+      resolve_deps \
+        "${makedepends[@]}" \
+        "${checkdepends[@]}" || \
+      deperr=1
+    else
+      resolve_deps \
+        "${makedepends[@]}" || \
+      deperr=1
+    fi
+  fi
+  if (( RMDEPS )); then
+    # required by remove_deps
+    current_pkglist=( $(
+      run_pacman \
+        -Qq)
+    )
+  fi
+  if (( deperr )); then
+    error \
+      "$(gettext \
+           "Could not resolve all dependencies.")"
+    exit \
+      "${E_INSTALL_DEPS_FAILED}"
+  fi
 fi
-
 # ensure existence of our src directory so we can begin with sources
-mkdir -p "$srcdir"
-chmod a-s "$srcdir"
-
+mkdir \
+  -p \
+  "${srcdir}"
+chmod \
+  a-s \
+  "${srcdir}"
 if [[ "${_os}" == "Msys" ]]; then
   export \
-		MINGW_CHOST MINGW_PREFIX MINGW_PACKAGE_PREFIX \
-  	DXSDK_DIR \
-		ACLOCAL_PATH \
-		PKG_CONFIG_PATH
+    MINGW_CHOST MINGW_PREFIX MINGW_PACKAGE_PREFIX \
+    DXSDK_DIR \
+    ACLOCAL_PATH \
+    PKG_CONFIG_PATH
 fi
-
 if (( !REPKG )); then
-	if (( NOEXTRACT && ! VERIFYSOURCE )); then
-		warning "$(gettext "Using existing %s tree")" "\$srcdir/"
-	else
-		download_sources
-		check_source_integrity
-		(( VERIFYSOURCE )) && exit $E_OK
-
-		if (( CLEANBUILD )); then
-			msg "$(gettext "Removing existing %s directory...")" "\$srcdir/"
-			rm -rf "$srcdir"
-			mkdir -p "$srcdir"
-			chmod a-s "$srcdir"
-		fi
-
-		cd_safe "$srcdir"
-		extract_sources
-		if (( PREPAREFUNC )); then
-			run_prepare
-		fi
-		if (( REPRODUCIBLE )); then
-			# We have activated reproducible builds, so unify source times before
-			# building
-			find "$srcdir" -exec touch -h -d @$SOURCE_DATE_EPOCH {} +
-		fi
-	fi
-
-	if (( PKGVERFUNC )); then
-		update_pkgver
-		basever=$(get_full_version)
-		check_build_status
-	fi
+  if (( NOEXTRACT && \
+        ! VERIFYSOURCE )); then
+    warning \
+      "$(gettext \
+           "Using existing %s tree")" \
+      "\$srcdir/"
+  else
+    download_sources
+    check_source_integrity
+    (( VERIFYSOURCE )) && \
+      exit \
+        "${E_OK}"
+    if (( CLEANBUILD )); then
+      msg \
+        "$(gettext \
+             "Removing existing %s directory...")" \
+        "\$srcdir/"
+      rm \
+        -rf \
+        "${srcdir}"
+      mkdir \
+        -p \
+        "${srcdir}"
+      chmod \
+        a-s \
+        "${srcdir}"
+    fi
+    cd_safe \
+      "${srcdir}"
+    extract_sources
+    if (( PREPAREFUNC )); then
+      run_prepare
+    fi
+    if (( REPRODUCIBLE )); then
+      # We have activated reproducible builds,
+      # so unify source times before
+      # building
+      find \
+        "${srcdir}" \
+        -exec \
+          touch \
+            -h \
+            -d \
+            @$SOURCE_DATE_EPOCH {} +
+    fi
+  fi
+  if (( PKGVERFUNC )); then
+    update_pkgver
+    basever=$(
+      get_full_version)
+    check_build_status
+  fi
 fi
-
 if (( NOBUILD )); then
-	msg "$(gettext "Sources are ready.")"
-	exit $E_OK
+  msg \
+    "$(gettext \
+         "Sources are ready.")"
+  exit \
+    "${E_OK}"
 else
-	# clean existing pkg directory
-	if [[ -d $pkgdirbase ]]; then
-		msg "$(gettext "Removing existing %s directory...")" "\$pkgdir/"
-		rm -rf "$pkgdirbase"
-	fi
-	mkdir -p "$pkgdirbase"
-	chmod a-srw "$pkgdirbase"
-	cd_safe "$startdir"
-
-	prepare_buildenv || exit $E_INVALID_OPTION
-
-	if (( ! REPKG )); then
-		(( BUILDFUNC )) && run_build
-		(( CHECKFUNC )) && run_check
-		cd_safe "$startdir"
-	fi
-
-	enter_fakeroot
-
-	create_package_signatures || exit $E_PRETTY_BAD_PRIVACY
+  # clean existing pkg directory
+  if [[ -d "${pkgdirbase}" ]]; then
+    msg \
+      "$(gettext \
+           "Removing existing %s directory...")" \
+      "\$pkgdir/"
+    rm \
+      -rf \
+      "${pkgdirbase}"
+  fi
+  mkdir \
+    -p \
+    "${pkgdirbase}"
+  chmod \
+    a-srw \
+    "${pkgdirbase}"
+  cd_safe \
+    "${startdir}"
+  prepare_buildenv || \
+  exit \
+    "${E_INVALID_OPTION}"
+  if (( ! REPKG )); then
+    (( BUILDFUNC )) && \
+      run_build
+    (( CHECKFUNC )) && \
+      run_check
+    cd_safe \
+      "${startdir}"
+  fi
+  enter_fakeroot
+  create_package_signatures || \
+    exit \
+      "${E_PRETTY_BAD_PRIVACY}"
 fi
-
 # if inhibiting archive creation, go no further
 if (( NOARCHIVE )); then
-	msg "$(gettext "Package directory is ready.")"
-	exit $E_OK
+  msg \
+    "$(gettext \
+         "Package directory is ready.")"
+  exit \
+    "${E_OK}"
 fi
+msg \
+  "$(gettext \
+       "Finished making: %s")" \
+  "${pkgbase} ${basever} ($(date \
+                              "+%c"))"
 
-msg "$(gettext "Finished making: %s")" "$pkgbase $basever ($(date +%c))"
-
-install_package && exit $E_OK || exit $E_INSTALL_FAILED
+install_package && \
+exit \
+  "${E_OK}" || \
+exit \
+  "${E_INSTALL_FAILED}"
